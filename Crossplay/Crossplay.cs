@@ -1,0 +1,207 @@
+﻿using System;
+using System.IO;
+using Terraria;
+using TerrariaApi.Server;
+
+namespace Crossplay
+{
+    [ApiVersion(2, 1)]
+    public class Crossplay : TerrariaPlugin
+    {
+        public static int packetHeader = 3;
+        public override string Name => "Crossplay for Terraria";
+        public override string Author => "Moneylover3246";
+        public override string Description => "Enables crossplay for terraria";
+        public override Version Version => new Version("1.4.2.3");
+
+        public bool[] IsMobile = new bool[Main.maxPlayers];
+        public Crossplay(Main game) : base(game)
+        {
+            Order = -1;
+        }
+        public override void Initialize()
+        {
+            ServerApi.Hooks.NetGetData.Register(this, GetData, 1);
+            ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, 10);
+            ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                ServerApi.Hooks.NetGetData.Deregister(this, GetData);
+                ServerApi.Hooks.NetSendBytes.Deregister(this, SendBytes);
+                ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
+            }
+            base.Dispose(disposing);
+        }
+
+        // Try to handle data manipulation before tshock + other plugins do so
+        private void GetData(GetDataEventArgs args)
+        {
+            MemoryStream memoryStream = new MemoryStream(args.Msg.readBuffer, args.Index, args.Length);
+            using (BinaryReader reader = new BinaryReader(memoryStream))
+            {
+                switch (args.MsgID)
+                {
+                    case PacketTypes.ConnectRequest:
+                        {
+                            string version = reader.ReadString();
+                            if (version == "Terraria230")
+                            {
+                                IsMobile[args.Msg.whoAmI] = true;
+                                byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria238").GetByteData();
+                                Console.ForegroundColor = ConsoleColor.Green;
+                                Console.WriteLine("[Crossplay] Fixing mobile for index " + args.Msg.whoAmI);
+                                Console.ResetColor();
+                                args.Msg.readBuffer.SwapBytes(args.Index - packetHeader, args.Length + (packetHeader - 1), buffer);
+                            }
+                        }
+                        break;
+                    case PacketTypes.TileSendSquare:
+                        {
+                            ushort size = reader.ReadUInt16();
+                            byte changeType = 0;
+                            if ((size & 32768) > 0)
+                            {
+                                changeType = reader.ReadByte();
+                            }
+                            short tileX = reader.ReadInt16();
+                            short tileY = reader.ReadInt16();
+                            byte[] tileData = reader.ReadBytes((int)(reader.BaseStream.Position - reader.BaseStream.Length));
+                            byte[] buffer = new PacketFactory()
+                                .SetType(20)
+                                .PackInt16(tileX)
+                                .PackInt16(tileY)
+                                .PackByte((byte)size)
+                                .PackByte((byte)size)
+                                .PackByte(changeType)
+                                .PackBuffer(tileData)
+                                .GetByteData();
+                            args.Msg.readBuffer.SwapBytes(args.Index - packetHeader, args.Length + (packetHeader - 1), buffer);
+                        }
+                        break;
+                }
+            }
+        }
+
+        // Try to handle data manipulation after other plugins do so
+        private void SendBytes(SendBytesEventArgs args)
+        {
+            int playerIndex = args.Socket.Id;
+            RemoteClient client = Netplay.Clients[playerIndex];
+            try
+            {
+                if (IsMobile[playerIndex])
+                {
+                    using (BinaryReader reader = new BinaryReader(new MemoryStream(args.Buffer, 0, args.Buffer.Length)))
+                    {
+                        int packetlength = reader.ReadInt16();
+                        int msgID = reader.ReadByte();
+                        switch ((PacketTypes)msgID)
+                        {
+                            case PacketTypes.WorldInfo:
+                                {
+                                    byte[] buffer = reader.ReadBytes(22);
+                                    string worldName = reader.ReadString();
+                                    byte[] buffer2 = reader.ReadBytes(103);
+                                    reader.ReadByte(); // Main.tenthAnniversaryWorld
+                                    byte[] buffer3 = reader.ReadBytes(27);
+                                    byte[] data = new PacketFactory()
+                                        .SetType(7)
+                                        .PackBuffer(buffer)
+                                        .PackString(worldName)
+                                        .PackBuffer(buffer2)
+                                        .PackBuffer(buffer3)
+                                        .GetByteData();
+                                    args.Socket.Socket.AsyncSend(data, 0, data.Length, client.ServerWriteCallBack);
+                                    args.Handled = true;
+                                }
+                                break;
+                            case PacketTypes.TileSendSquare:
+                                {
+                                    short tileX = reader.ReadInt16();
+                                    short tileY = reader.ReadInt16();
+                                    ushort width = reader.ReadByte();
+                                    ushort length = reader.ReadByte();
+                                    byte tileChangeType = reader.ReadByte();
+                                    ushort size = Math.Max(width, length);
+                                    PacketFactory data = new PacketFactory()
+                                        .SetType(20)
+                                        .PackUInt16(size);
+                                    if ((size & 0x8000) != 0)
+                                    {
+                                        data.PackByte(tileChangeType);
+                                    }
+                                    data.PackInt16(tileX);
+                                    data.PackInt16(tileY);
+                                    data.PackBuffer(reader.ReadBytes((int)(reader.BaseStream.Length - reader.BaseStream.Position)));
+                                    byte[] buffer = data.GetByteData();
+                                    args.Socket.Socket.AsyncSend(buffer, 0, buffer.Length, client.ServerWriteCallBack);
+                                    args.Handled = true;
+                                }
+                                break;
+                            case PacketTypes.ProjectileNew:
+                                {
+                                    reader.ReadBytes(19);
+                                    short projectileType = reader.ReadInt16();
+                                    if (projectileType > 949)
+                                    {
+                                        Array.Clear(args.Buffer, 0, args.Buffer.Length);
+                                        args.Handled = true;
+                                    }
+                                }
+                                break;
+                            case PacketTypes.NpcUpdate:
+                                {
+                                    short npcID = reader.ReadInt16();
+                                    NPC npc = Main.npc[npcID];
+                                    if (npc.type > 662)
+                                    {
+                                        Array.Clear(args.Buffer, 0, args.Buffer.Length);
+                                        args.Handled = true;
+                                    }
+                                }
+                                break;
+                            case PacketTypes.LoadNetModule:
+                                {
+                                    ushort netModuleID = reader.ReadUInt16();
+                                    switch (netModuleID)
+                                    {
+                                        case 4:
+                                            byte unlockType = reader.ReadByte();
+                                            short npcID = reader.ReadInt16();
+                                            if (npcID > 662)
+                                            {
+                                                Array.Clear(args.Buffer, 0, args.Buffer.Length);
+                                                args.Handled = true;
+                                            }
+                                            break;
+                                        case 5:
+                                            short itemID = reader.ReadInt16();
+                                            if (itemID > 5044)
+                                            {
+                                                Array.Clear(args.Buffer, 0, args.Buffer.Length);
+                                                args.Handled = true;
+                                            }
+                                            break;
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+        }
+
+        private void OnLeave(LeaveEventArgs args)
+        {
+            IsMobile[args.Who] = false;
+        }
+    }
+}

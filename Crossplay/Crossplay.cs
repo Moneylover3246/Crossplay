@@ -195,7 +195,6 @@ namespace Crossplay
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.ToString());
             }
         }
 

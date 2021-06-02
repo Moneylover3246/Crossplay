@@ -2,9 +2,11 @@
 using System.IO;
 using OTAPI.Tile;
 using Terraria;
+using Terraria.ID;
 using Terraria.Net.Sockets;
 using TerrariaApi.Server;
 using TShockAPI;
+using TShockAPI.Net;
 
 namespace Crossplay
 {
@@ -24,7 +26,7 @@ namespace Crossplay
         }
         public override void Initialize()
         {
-            ServerApi.Hooks.NetGetData.Register(this, GetData, -1);
+            ServerApi.Hooks.NetGetData.Register(this, GetData, 1);
             ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, 10);
             ServerApi.Hooks.NetSendNetData.Register(this, HandleNetModules);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
@@ -77,82 +79,33 @@ namespace Crossplay
                                     }
                                     short tileX = reader.ReadInt16();
                                     short tileY = reader.ReadInt16();
-                                    BitsByte tileFlags = 0;
-                                    BitsByte tileFlags2 = 0;
-                                    for (int X = tileX; X < tileX + (int)size; X++)
+
+                                    SendTileRectHandler handler = new SendTileRectHandler();
+                                    GetDataHandlers.SendTileRectEventArgs STREventArgs = new GetDataHandlers.SendTileRectEventArgs()
                                     {
-                                        for (int Y = tileY; Y < tileY + (int)size; Y++)
+                                        Player = TShock.Players[args.Msg.whoAmI],
+                                        TileX = tileX,
+                                        TileY = tileY,
+                                        ChangeType = (TileChangeType)changeType,
+                                        Data = memoryStream,
+                                        Width = (byte)size,
+                                        Length = (byte)size,
+                                    };
+                                    if (SendTileRectHandler.ShouldSkipProcessing(STREventArgs))
+                                    {
+                                        return;
+                                    }
+                                    bool[,] processed = new bool[size, size];
+                                    NetTile[,] tiles = new NetTile[size, size];
+                                    MemoryStream stream = new MemoryStream(args.Msg.readBuffer, (int)(args.Index + reader.BaseStream.Position), args.Length); ;
+                                    for (int x = 0; x < size; x++)
+                                    {
+                                        for (int y = 0; y < size; y++)
                                         {
-                                            if (Main.tile[X, Y] == null)
-                                            {
-                                                Main.tile[X, Y] = new Tile();
-                                            }
-                                            ITile tile = Main.tile[X, Y];
-                                            tileFlags = reader.ReadByte();
-                                            tileFlags2 = reader.ReadByte();
-                                            tile.active(tileFlags[0]);
-                                            tile.wall = (ushort)(tileFlags[2] ? 1 : 0);
-                                            if (Main.netMode != 2)
-                                            {
-                                                tile.liquid = (byte)(tileFlags[3] ? 1 : 0);
-                                            }
-                                            tile.wire(tileFlags[4]);
-                                            tile.halfBrick(tileFlags[5]);
-                                            tile.actuator(tileFlags[6]);
-                                            tile.inActive(tileFlags[7]);
-                                            tile.wire2(tileFlags2[0]);
-                                            tile.wire3(tileFlags2[1]);
-                                            if (tileFlags2[2])
-                                            {
-                                                tile.color(reader.ReadByte());
-                                            }
-                                            if (tileFlags2[3])
-                                            {
-                                                tile.wallColor(reader.ReadByte());
-                                            }
-                                            if (tile.active())
-                                            {
-                                                int type5 = tile.type;
-                                                tile.type = reader.ReadUInt16();
-                                                if (Main.tileFrameImportant[tile.type])
-                                                {
-                                                    tile.frameX = reader.ReadInt16();
-                                                    tile.frameY = reader.ReadInt16();
-                                                }
-                                                else if (!tile.active() || tile.type != type5)
-                                                {
-                                                    tile.frameX = -1;
-                                                    tile.frameY = -1;
-                                                }
-                                                byte slope = 0;
-                                                if (tileFlags2[4])
-                                                {
-                                                    slope += 1;
-                                                }
-                                                if (tileFlags2[5])
-                                                {
-                                                    slope += 2;
-                                                }
-                                                if (tileFlags2[6])
-                                                {
-                                                    slope += 4;
-                                                }
-                                                tile.slope(slope);
-                                            }
-                                            tile.wire4(tileFlags2[7]);
-                                            if (tile.wall > 0)
-                                            {
-                                                tile.wall = reader.ReadUInt16();
-                                            }
-                                            if (tileFlags[3])
-                                            {
-                                                tile.liquid = reader.ReadByte();
-                                                tile.liquidType(reader.ReadByte());
-                                            }
+                                            tiles[x, y] = new NetTile(memoryStream);
                                         }
                                     }
-                                    WorldGen.RangeFrame(tileX, tileY, tileX + size, tileY + size);
-                                    NetMessage.SendData(20, -1, args.Msg.whoAmI, null, tileX, tileY, size, size, changeType);
+                                    handler.IterateTileRect(tiles, processed, STREventArgs);
                                     args.Handled = true;
                                 }
                             }
@@ -170,7 +123,6 @@ namespace Crossplay
         private void SendBytes(SendBytesEventArgs args)
         {
             int playerIndex = args.Socket.Id;
-            RemoteClient client = Netplay.Clients[playerIndex];
             try
             {
                 if (IsMobile[playerIndex])

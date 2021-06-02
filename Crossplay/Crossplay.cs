@@ -1,10 +1,8 @@
 ﻿using System;
 using System.IO;
+using OTAPI.Tile;
 using Terraria;
-using Terraria.GameContent.Events;
-using Terraria.Net;
 using Terraria.Net.Sockets;
-using Terraria.Social;
 using TerrariaApi.Server;
 using TShockAPI;
 
@@ -26,7 +24,7 @@ namespace Crossplay
         }
         public override void Initialize()
         {
-            ServerApi.Hooks.NetGetData.Register(this, GetData, 1);
+            ServerApi.Hooks.NetGetData.Register(this, GetData, -1);
             ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, 10);
             ServerApi.Hooks.NetSendNetData.Register(this, HandleNetModules);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
@@ -49,48 +47,121 @@ namespace Crossplay
             MemoryStream memoryStream = new MemoryStream(args.Msg.readBuffer, args.Index, args.Length);
             using (BinaryReader reader = new BinaryReader(memoryStream))
             {
-                switch (args.MsgID)
+                try
                 {
-                    case PacketTypes.ConnectRequest:
-                        {
-                            string version = reader.ReadString();
-                            if (version == "Terraria230")
+                    switch (args.MsgID)
+                    {
+                        case PacketTypes.ConnectRequest:
                             {
-                                IsMobile[args.Msg.whoAmI] = true;
-                                byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
-                                Console.ForegroundColor = ConsoleColor.Green;
-                                Console.WriteLine("[Crossplay] Fixing mobile for index " + args.Msg.whoAmI);
-                                Console.ResetColor();
-                                args.Msg.readBuffer.SwapBytes(args.Index - packetHeader, args.Length + (packetHeader - 1), buffer);
-                            }
-                        }
-                        break;
-                    case PacketTypes.TileSendSquare:
-                        {
-                            if (IsMobile[args.Msg.whoAmI])
-                            {
-                                ushort size = reader.ReadUInt16();
-                                byte changeType = 0;
-                                if ((size & 32768) > 0)
+                                string version = reader.ReadString();
+                                if (version == "Terraria230")
                                 {
-                                    changeType = reader.ReadByte();
+                                    IsMobile[args.Msg.whoAmI] = true;
+                                    byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("[Crossplay] Fixing mobile for index " + args.Msg.whoAmI);
+                                    Console.ResetColor();
+                                    args.Msg.readBuffer.SwapBytes(args.Index - packetHeader, args.Length + (packetHeader - 1), buffer);
                                 }
-                                short tileX = reader.ReadInt16();
-                                short tileY = reader.ReadInt16();
-                                byte[] tileData = reader.ReadBytes((int)(reader.BaseStream.Length - reader.BaseStream.Position));
-                                byte[] buffer = new PacketFactory()
-                                    .SetType(20)
-                                    .PackInt16(tileX)
-                                    .PackInt16(tileY)
-                                    .PackByte((byte)size)
-                                    .PackByte((byte)size)
-                                    .PackByte(changeType)
-                                    .PackBuffer(tileData)
-                                    .GetByteData();
-                                args.Msg.readBuffer.SwapBytes(args.Index - packetHeader, args.Length + (packetHeader - 1), buffer);
                             }
-                        }
-                        break;
+                            break;
+                        case PacketTypes.TileSendSquare:
+                            {
+                                if (IsMobile[args.Msg.whoAmI])
+                                {
+                                    ushort size = reader.ReadUInt16();
+                                    byte changeType = 0;
+                                    if ((size & 32768) > 0)
+                                    {
+                                        changeType = reader.ReadByte();
+                                    }
+                                    short tileX = reader.ReadInt16();
+                                    short tileY = reader.ReadInt16();
+                                    BitsByte tileFlags = 0;
+                                    BitsByte tileFlags2 = 0;
+                                    for (int X = tileX; X < tileX + (int)size; X++)
+                                    {
+                                        for (int Y = tileY; Y < tileY + (int)size; Y++)
+                                        {
+                                            if (Main.tile[X, Y] == null)
+                                            {
+                                                Main.tile[X, Y] = new Tile();
+                                            }
+                                            ITile tile = Main.tile[X, Y];
+                                            tileFlags = reader.ReadByte();
+                                            tileFlags2 = reader.ReadByte();
+                                            tile.active(tileFlags[0]);
+                                            tile.wall = (ushort)(tileFlags[2] ? 1 : 0);
+                                            if (Main.netMode != 2)
+                                            {
+                                                tile.liquid = (byte)(tileFlags[3] ? 1 : 0);
+                                            }
+                                            tile.wire(tileFlags[4]);
+                                            tile.halfBrick(tileFlags[5]);
+                                            tile.actuator(tileFlags[6]);
+                                            tile.inActive(tileFlags[7]);
+                                            tile.wire2(tileFlags2[0]);
+                                            tile.wire3(tileFlags2[1]);
+                                            if (tileFlags2[2])
+                                            {
+                                                tile.color(reader.ReadByte());
+                                            }
+                                            if (tileFlags2[3])
+                                            {
+                                                tile.wallColor(reader.ReadByte());
+                                            }
+                                            if (tile.active())
+                                            {
+                                                int type5 = tile.type;
+                                                tile.type = reader.ReadUInt16();
+                                                if (Main.tileFrameImportant[tile.type])
+                                                {
+                                                    tile.frameX = reader.ReadInt16();
+                                                    tile.frameY = reader.ReadInt16();
+                                                }
+                                                else if (!tile.active() || tile.type != type5)
+                                                {
+                                                    tile.frameX = -1;
+                                                    tile.frameY = -1;
+                                                }
+                                                byte slope = 0;
+                                                if (tileFlags2[4])
+                                                {
+                                                    slope += 1;
+                                                }
+                                                if (tileFlags2[5])
+                                                {
+                                                    slope += 2;
+                                                }
+                                                if (tileFlags2[6])
+                                                {
+                                                    slope += 4;
+                                                }
+                                                tile.slope(slope);
+                                            }
+                                            tile.wire4(tileFlags2[7]);
+                                            if (tile.wall > 0)
+                                            {
+                                                tile.wall = reader.ReadUInt16();
+                                            }
+                                            if (tileFlags[3])
+                                            {
+                                                tile.liquid = reader.ReadByte();
+                                                tile.liquidType(reader.ReadByte());
+                                            }
+                                        }
+                                    }
+                                    WorldGen.RangeFrame(tileX, tileY, tileX + size, tileY + size);
+                                    NetMessage.SendData(20, -1, args.Msg.whoAmI, null, tileX, tileY, size, size, changeType);
+                                    args.Handled = true;
+                                }
+                            }
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
                 }
             }
         }

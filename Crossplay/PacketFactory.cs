@@ -4,7 +4,7 @@ using System.IO;
 public class PacketFactory
 {
     private MemoryStream memoryStream;
-    private BinaryWriter writer;
+    public BinaryWriter writer;
     public PacketFactory()
     {
         memoryStream = new MemoryStream();
@@ -28,6 +28,11 @@ public class PacketFactory
     }
 
     public PacketFactory PackByte(byte num)
+    {
+        writer.Write(num);
+        return this;
+    }
+    public PacketFactory PackSByte(sbyte num)
     {
         writer.Write(num);
         return this;

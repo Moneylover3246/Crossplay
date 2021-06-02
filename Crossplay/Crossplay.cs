@@ -1,7 +1,12 @@
 ﻿using System;
 using System.IO;
 using Terraria;
+using Terraria.GameContent.Events;
+using Terraria.Net;
+using Terraria.Net.Sockets;
+using Terraria.Social;
 using TerrariaApi.Server;
+using TShockAPI;
 
 namespace Crossplay
 {
@@ -23,6 +28,7 @@ namespace Crossplay
         {
             ServerApi.Hooks.NetGetData.Register(this, GetData, 1);
             ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, 10);
+            ServerApi.Hooks.NetSendNetData.Register(this, HandleNetModules);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
         }
 
@@ -32,11 +38,11 @@ namespace Crossplay
             {
                 ServerApi.Hooks.NetGetData.Deregister(this, GetData);
                 ServerApi.Hooks.NetSendBytes.Deregister(this, SendBytes);
+                ServerApi.Hooks.NetSendNetData.Deregister(this, HandleNetModules);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
             }
             base.Dispose(disposing);
         }
-
         // Try to handle data manipulation before tshock + other plugins do so
         private void GetData(GetDataEventArgs args)
         {
@@ -61,25 +67,28 @@ namespace Crossplay
                         break;
                     case PacketTypes.TileSendSquare:
                         {
-                            ushort size = reader.ReadUInt16();
-                            byte changeType = 0;
-                            if ((size & 32768) > 0)
+                            if (IsMobile[args.Msg.whoAmI])
                             {
-                                changeType = reader.ReadByte();
+                                ushort size = reader.ReadUInt16();
+                                byte changeType = 0;
+                                if ((size & 32768) > 0)
+                                {
+                                    changeType = reader.ReadByte();
+                                }
+                                short tileX = reader.ReadInt16();
+                                short tileY = reader.ReadInt16();
+                                byte[] tileData = reader.ReadBytes((int)(reader.BaseStream.Position - reader.BaseStream.Length));
+                                byte[] buffer = new PacketFactory()
+                                    .SetType(20)
+                                    .PackInt16(tileX)
+                                    .PackInt16(tileY)
+                                    .PackByte((byte)size)
+                                    .PackByte((byte)size)
+                                    .PackByte(changeType)
+                                    .PackBuffer(tileData)
+                                    .GetByteData();
+                                args.Msg.readBuffer.SwapBytes(args.Index - packetHeader, args.Length + (packetHeader - 1), buffer);
                             }
-                            short tileX = reader.ReadInt16();
-                            short tileY = reader.ReadInt16();
-                            byte[] tileData = reader.ReadBytes((int)(reader.BaseStream.Position - reader.BaseStream.Length));
-                            byte[] buffer = new PacketFactory()
-                                .SetType(20)
-                                .PackInt16(tileX)
-                                .PackInt16(tileY)
-                                .PackByte((byte)size)
-                                .PackByte((byte)size)
-                                .PackByte(changeType)
-                                .PackBuffer(tileData)
-                                .GetByteData();
-                            args.Msg.readBuffer.SwapBytes(args.Index - packetHeader, args.Length + (packetHeader - 1), buffer);
                         }
                         break;
                 }
@@ -115,7 +124,8 @@ namespace Crossplay
                                         .PackBuffer(buffer2)
                                         .PackBuffer(buffer3)
                                         .GetByteData();
-                                    args.Socket.Socket.AsyncSend(data, 0, data.Length, client.ServerWriteCallBack);
+                                    TShock.Players[playerIndex].SendRawData(data);
+                                    Array.Clear(args.Buffer, 0, args.Buffer.Length);
                                     args.Handled = true;
                                 }
                                 break;
@@ -138,7 +148,7 @@ namespace Crossplay
                                     data.PackInt16(tileY);
                                     data.PackBuffer(reader.ReadBytes((int)(reader.BaseStream.Length - reader.BaseStream.Position)));
                                     byte[] buffer = data.GetByteData();
-                                    args.Socket.Socket.AsyncSend(buffer, 0, buffer.Length, client.ServerWriteCallBack);
+                                    TShock.Players[playerIndex].SendRawData(buffer);
                                     args.Handled = true;
                                 }
                                 break;
@@ -164,31 +174,6 @@ namespace Crossplay
                                     }
                                 }
                                 break;
-                            case PacketTypes.LoadNetModule:
-                                {
-                                    ushort netModuleID = reader.ReadUInt16();
-                                    switch (netModuleID)
-                                    {
-                                        case 4:
-                                            byte unlockType = reader.ReadByte();
-                                            short npcID = reader.ReadInt16();
-                                            if (npcID > 662)
-                                            {
-                                                Array.Clear(args.Buffer, 0, args.Buffer.Length);
-                                                args.Handled = true;
-                                            }
-                                            break;
-                                        case 5:
-                                            short itemID = reader.ReadInt16();
-                                            if (itemID > 5044)
-                                            {
-                                                Array.Clear(args.Buffer, 0, args.Buffer.Length);
-                                                args.Handled = true;
-                                            }
-                                            break;
-                                    }
-                                }
-                                break;
                         }
                     }
                 }
@@ -198,9 +183,63 @@ namespace Crossplay
             }
         }
 
+        /*
+         * As of (shortly after) the release of TShock 1.4.2.3, TerrariaServerAPI introduced the NetSendNetData hook,
+         * which allows for NetModules to be read on non-proxy platforms, so LoadNetModule can be fixed for TShock.
+         */
+        private void HandleNetModules(SendNetDataEventArgs args)
+        {
+            byte[] moduleData = args.packet.Buffer.Data;
+            using (BinaryReader reader = new BinaryReader(new MemoryStream(moduleData)))
+            {
+                reader.ReadInt16(); // Packet Length
+                reader.ReadByte(); // Msg Type
+                ushort netModuleID = reader.ReadUInt16();
+                switch (netModuleID)
+                {
+                    case 4:
+                        byte unlockType = reader.ReadByte();
+                        short npcID = reader.ReadInt16();
+                        if (npcID > 662)
+                        {
+                            int index = GetIndexFromSocket(args.socket);
+                            if (IsMobile[index])
+                            {
+                                args.Handled = true;
+                                return;
+                            }
+                        }
+                        break;
+                    case 5:
+                        short itemID = reader.ReadInt16();
+                        if (itemID > 5044)
+                        {
+                            int index = GetIndexFromSocket(args.socket);
+                            if (IsMobile[index])
+                            {
+                                args.Handled = true;
+                                return;
+                            }
+                        }
+                        break;
+                }
+            }
+        }
         private void OnLeave(LeaveEventArgs args)
         {
             IsMobile[args.Who] = false;
+        }
+
+        private int GetIndexFromSocket(ISocket socket)
+        {
+            for (int i = 0; i < 255; i++)
+            {
+                if (Netplay.Clients[i] != null && Netplay.Clients[i].Socket == socket)
+                {
+                    return i;
+                }
+            }
+            return -1;
         }
     }
 }

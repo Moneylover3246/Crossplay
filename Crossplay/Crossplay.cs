@@ -77,7 +77,7 @@ namespace Crossplay
                                 }
                                 short tileX = reader.ReadInt16();
                                 short tileY = reader.ReadInt16();
-                                byte[] tileData = reader.ReadBytes((int)(reader.BaseStream.Position - reader.BaseStream.Length));
+                                byte[] tileData = reader.ReadBytes((int)(reader.BaseStream.Length - reader.BaseStream.Position));
                                 byte[] buffer = new PacketFactory()
                                     .SetType(20)
                                     .PackInt16(tileX)

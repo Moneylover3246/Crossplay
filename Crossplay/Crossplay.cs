@@ -57,7 +57,7 @@ namespace Crossplay
                             if (version == "Terraria230")
                             {
                                 IsMobile[args.Msg.whoAmI] = true;
-                                byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria238").GetByteData();
+                                byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
                                 Console.ForegroundColor = ConsoleColor.Green;
                                 Console.WriteLine("[Crossplay] Fixing mobile for index " + args.Msg.whoAmI);
                                 Console.ResetColor();
@@ -110,6 +110,17 @@ namespace Crossplay
                         int msgID = reader.ReadByte();
                         switch ((PacketTypes)msgID)
                         {
+                            case PacketTypes.ContinueConnecting:
+                                {
+                                    byte playerID = reader.ReadByte();
+                                    bool value = reader.ReadBoolean();
+                                    byte[] data = new PacketFactory()
+                                        .SetType(3)
+                                        .PackByte(playerID)
+                                        .GetByteData();
+                                    TShock.Players[playerIndex].SendRawData(data);
+                                }
+                                break;
                             case PacketTypes.WorldInfo:
                                 {
                                     byte[] buffer = reader.ReadBytes(22);

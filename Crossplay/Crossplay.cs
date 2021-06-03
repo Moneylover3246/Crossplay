@@ -12,7 +12,7 @@ namespace Crossplay
     [ApiVersion(2, 1)]
     public class Crossplay : TerrariaPlugin
     {
-        public static int packetHeader = 3;
+        public static int Header = 3;
         public override string Name => "Crossplay for Terraria";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
@@ -62,7 +62,7 @@ namespace Crossplay
                                     Console.ForegroundColor = ConsoleColor.Green;
                                     Console.WriteLine("[Crossplay] Fixing mobile for index " + args.Msg.whoAmI);
                                     Console.ResetColor();
-                                    args.Msg.readBuffer.SwapBytes(args.Index - packetHeader, args.Length + (packetHeader - 1), buffer);
+                                    args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), buffer);
                                 }
                             }
                             break;

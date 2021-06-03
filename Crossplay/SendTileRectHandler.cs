@@ -122,7 +122,6 @@ namespace Crossplay
 		{
 			if (y + offsetY < 0)
 			{
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRectHandler - rejected tile object because object dimensions fall outside the tile rect (negative y value)");
 				return false;
 			}
 
@@ -136,7 +135,6 @@ namespace Crossplay
 					}
 				}
 
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRectHandler - rejected tile object because object dimensions fall outside the tile rect (excessive size)");
 				return false;
 			}
 
@@ -147,13 +145,11 @@ namespace Crossplay
 		{
 			if (!args.Player.HasBuildPermissionForTileObject(realX, realY, width, height))
 			{
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRect rejected from no permission for tile object from {0}", args.Player.Name);
 				return;
 			}
 
 			if (TShock.TileBans.TileIsBanned((short)tileType))
 			{
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRect rejected for banned tile");
 				return;
 			}
 
@@ -228,7 +224,6 @@ namespace Crossplay
 
 			tile.slope(newTile.Slope);
 
-			TShock.Log.ConsoleDebug("Bouncer / SendTileRect updated a tile from type {0} to {1}", tile.type, newTile.Type);
 		}
 		public static void UpdateMultipleServerTileStates(int x, int y, int width, int height, NetTile[,] newTiles)
 		{
@@ -265,7 +260,6 @@ namespace Crossplay
 				WallID.Sets.Conversion.NewWall4[tile.wall] && WallID.Sets.Conversion.NewWall4[newTile.Wall]
 			)
 			{
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRect processing a conversion update - [{0}|{1}] -> [{2}|{3}]", tile.type, tile.wall, newTile.Type, newTile.Wall);
 				UpdateServerTileState(tile, newTile);
 			}
 		}
@@ -289,7 +283,6 @@ namespace Crossplay
 		{
 			if (args.Player.HasPermission(Permissions.allowclientsideworldedit))
 			{
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRect accepted clientside world edit from {0}", args.Player.Name);
 				args.Handled = false;
 				return true;
 			}
@@ -297,7 +290,6 @@ namespace Crossplay
 			var rectSize = args.Width * args.Length;
 			if (rectSize > TShock.Config.Settings.TileRectangleSizeThreshold)
 			{
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRect rejected from non-vanilla tilemod from {0}", args.Player.Name);
 				if (TShock.Config.Settings.KickOnTileRectangleSizeThresholdBroken)
 				{
 					args.Player.Kick("Unexpected tile threshold reached");
@@ -308,14 +300,12 @@ namespace Crossplay
 
 			if (args.Player.IsBouncerThrottled())
 			{
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRect rejected from throttle from {0}", args.Player.Name);
 				args.Player.SendTileRect(args.TileX, args.TileY, args.Length, args.Width);
 				return true;
 			}
 
 			if (args.Player.IsBeingDisabled())
 			{
-				TShock.Log.ConsoleDebug("Bouncer / SendTileRect rejected from being disabled from {0}", args.Player.Name);
 				args.Player.SendTileRect(args.TileX, args.TileY, args.Length, args.Width);
 				return true;
 			}

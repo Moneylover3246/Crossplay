@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using OTAPI.Tile;
 using Terraria;
 using Terraria.ID;
 using Terraria.Net.Sockets;
@@ -174,7 +173,7 @@ namespace Crossplay
                                     PacketFactory data = new PacketFactory()
                                         .SetType(20)
                                         .PackUInt16(size);
-                                    if ((size & 0x8000) != 0)
+                                    if (tileChangeType != 0)
                                     {
                                         data.PackByte(tileChangeType);
                                     }

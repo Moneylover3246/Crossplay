@@ -159,7 +159,6 @@ namespace Crossplay
                                         .PackBuffer(buffer3)
                                         .GetByteData();
                                     TShock.Players[playerIndex].SendRawData(data);
-                                    Array.Clear(args.Buffer, 0, args.Buffer.Length);
                                     args.Handled = true;
                                 }
                                 break;

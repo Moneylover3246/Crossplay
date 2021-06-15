@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using OTAPI.Tile;
 using Terraria;
 using Terraria.ID;
 using Terraria.Net.Sockets;
@@ -180,6 +181,65 @@ namespace Crossplay
                                     data.PackInt16(tileX);
                                     data.PackInt16(tileY);
                                     data.PackBuffer(reader.ReadBytes((int)(reader.BaseStream.Length - reader.BaseStream.Position)));
+                                    for (int x = tileX + width; x < tileX + size; x++)
+                                    {
+                                        for (int y = tileY + length; y < tileY + size; y++)
+                                        {
+                                            BitsByte tileFlags = 0;
+                                            BitsByte tileFlags2 = 0;
+                                            byte tileColor = 0;
+                                            byte tileWallColor = 0;
+                                            ITile tile = Main.tile[x, y];
+                                            tileFlags[0] = tile.active();
+                                            tileFlags[2] = tile.wall > 0;
+                                            tileFlags[3] = tile.liquid > 0;
+                                            tileFlags[4] = tile.wire();
+                                            tileFlags[7] = tile.inActive();
+                                            tileFlags2[0] = tile.wire2();
+                                            tileFlags2[1] = tile.wire3();
+
+                                            if (tile.active() && tile.color() > 0)
+                                            {
+                                                tileFlags2[2] = true;
+                                                tileColor = tile.color();
+                                            }
+                                            if (tile.wall > 0 && tile.wallColor() > 0)
+                                            {
+                                                tileFlags2[3] = true;
+                                                tileWallColor = tile.wallColor();
+                                            }
+                                            tileFlags2 += (byte)(tile.slope() << 4);
+                                            tileFlags2[7] = tile.wire4();
+                                            data.PackByte(tileFlags);
+                                            data.PackByte(tileFlags2);
+                                            if (tileColor > 0)
+                                            {
+                                                data.PackByte(tileColor);
+                                            }
+                                            if (tileWallColor > 0)
+                                            {
+                                                data.PackByte(tileWallColor);
+                                            }
+                                            if (tile.active())
+                                            {
+                                                data.PackUInt16(tile.type);
+                                                if (Main.tileFrameImportant[tile.type])
+                                                {
+                                                    data.PackInt16(tile.frameX);
+                                                    data.PackInt16(tile.frameY);
+                                                }
+                                            }
+                                            if (tile.wall > 0)
+                                            {
+                                                data.PackUInt16(tile.wall);
+                                            }
+                                            if (tile.liquid > 0)
+                                            {
+                                                data.PackByte(tile.liquid);
+                                                data.PackByte(tile.liquidType());
+                                            }
+                                        }
+                                    }
                                     byte[] buffer = data.GetByteData();
                                     TShock.Players[playerIndex].SendRawData(buffer);
                                     args.Handled = true;
@@ -188,21 +248,28 @@ namespace Crossplay
                             case PacketTypes.ProjectileNew:
                                 {
                                     reader.ReadBytes(19);
-                                    short projectileType = reader.ReadInt16();
-                                    if (projectileType > 949)
+                                    short projID = reader.ReadInt16();
+                                    if (projID > 949)
                                     {
-                                        Array.Clear(args.Buffer, 0, args.Buffer.Length);
                                         args.Handled = true;
                                     }
                                 }
                                 break;
                             case PacketTypes.NpcUpdate:
                                 {
-                                    short npcID = reader.ReadInt16();
-                                    NPC npc = Main.npc[npcID];
-                                    if (npc.type > 662)
+                                    reader.ReadBytes(20);
+                                    BitsByte npcFlags = reader.ReadByte();
+                                    reader.ReadByte();
+                                    for (int i = 2; i < 6; i++)
                                     {
-                                        Array.Clear(args.Buffer, 0, args.Buffer.Length);
+                                        if (npcFlags[i])
+                                        {
+                                            reader.ReadSingle();
+                                        }
+                                    }
+                                    int type = reader.ReadInt16();
+                                    if (type > 662)
+                                    {
                                         args.Handled = true;
                                     }
                                 }

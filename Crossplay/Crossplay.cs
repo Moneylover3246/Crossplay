@@ -91,6 +91,7 @@ namespace Crossplay
                                         Width = (byte)size,
                                         Length = (byte)size,
                                     };
+                                    args.Handled = true;
                                     if (SendTileRectHandler.ShouldSkipProcessing(STREventArgs))
                                     {
                                         return;
@@ -106,7 +107,6 @@ namespace Crossplay
                                         }
                                     }
                                     handler.IterateTileRect(tiles, processed, STREventArgs);
-                                    args.Handled = true;
                                 }
                             }
                             break;

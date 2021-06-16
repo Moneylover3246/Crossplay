@@ -281,12 +281,6 @@ namespace Crossplay
 
 		internal static bool ShouldSkipProcessing(GetDataHandlers.SendTileRectEventArgs args)
 		{
-			if (args.Player.HasPermission(Permissions.allowclientsideworldedit))
-			{
-				args.Handled = false;
-				return true;
-			}
-
 			var rectSize = args.Width * args.Length;
 			if (rectSize > TShock.Config.Settings.TileRectangleSizeThreshold)
 			{
@@ -294,7 +288,6 @@ namespace Crossplay
 				{
 					args.Player.Kick("Unexpected tile threshold reached");
 				}
-
 				return true;
 			}
 

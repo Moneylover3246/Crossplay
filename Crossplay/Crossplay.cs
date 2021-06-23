@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using OTAPI.Tile;
 using Terraria;
 using Terraria.Net.Sockets;
 using TerrariaApi.Server;
@@ -74,70 +75,129 @@ namespace Crossplay
                                     var tileY = reader.ReadInt16();
                                     var width = reader.ReadByte();
                                     var length = reader.ReadByte();
+                                    var size = Math.Min(width, length);
                                     var tileChangeType = reader.ReadByte();
-
+                                    args.Handled = true;
                                     var eventArgs = new SendTileSquareEventArgs()
                                     {
                                         Player = player,
                                         Data = new MemoryStream(args.Msg.readBuffer, args.Index, args.Length),
-                                        Size = Math.Min(width, length),
+                                        Size = size,
                                         TileX = tileX,
                                         TileY = tileY
                                     };
                                     SendTileSquare.Invoke(null, eventArgs);
-                                    args.Handled = true;
+                                    if (!eventArgs.Handled)
+                                    {
+                                        BitsByte flags = 0;
+                                        BitsByte flags2 = 0;
+                                        for (int x = tileX; x < tileX + width; x++)
+                                        {
+                                            for (int y = tileY; y < tileY + length; y++)
+                                            {
+                                                if (Main.tile[x, y] == null)
+                                                {
+                                                    Main.tile[x, y] = new Tile();
+                                                }
+                                                ITile tile = Main.tile[x, y];
+                                                bool active = tile.active();
+                                                flags = reader.ReadByte();
+                                                flags2 = reader.ReadByte();
+                                                tile.active(flags[0]);
+                                                tile.wall = (ushort)(flags[2] ? 1 : 0);
+                                                bool liquid = flags[3];
+                                                if (Main.netMode != 2)
+                                                {
+                                                    tile.liquid = (byte)(liquid ? 1 : 0);
+                                                }
+                                                tile.wire(flags[4]);
+                                                tile.halfBrick(flags[5]);
+                                                tile.actuator(flags[6]);
+                                                tile.inActive(flags[7]);
+                                                tile.wire2(flags2[0]);
+                                                tile.wire3(flags2[1]);
+                                                if (flags2[2])
+                                                {
+                                                    tile.color(reader.ReadByte());
+                                                }
+                                                if (flags2[3])
+                                                {
+                                                    tile.wallColor(reader.ReadByte());
+                                                }
+                                                if (tile.active())
+                                                {
+                                                    int type5 = tile.type;
+                                                    tile.type = reader.ReadUInt16();
+                                                    if (Main.tileFrameImportant[tile.type])
+                                                    {
+                                                        tile.frameX = reader.ReadInt16();
+                                                        tile.frameY = reader.ReadInt16();
+                                                    }
+                                                    else if (!active || tile.type != type5)
+                                                    {
+                                                        tile.frameX = -1;
+                                                        tile.frameY = -1;
+                                                    }
+                                                    byte slope = 0;
+                                                    if (flags2[4])
+                                                    {
+                                                        slope += 1;
+                                                    }
+                                                    if (flags2[5])
+                                                    {
+                                                        slope += 2;
+                                                    }
+                                                    if (flags2[6])
+                                                    {
+                                                        slope += 4;
+                                                    }
+                                                    tile.slope(slope);
+                                                }
+                                                tile.wire4(flags2[7]);
+                                                if (tile.wall > 0)
+                                                {
+                                                    tile.wall = reader.ReadUInt16();
+                                                }
+                                                if (liquid)
+                                                {
+                                                    tile.liquid = reader.ReadByte();
+                                                    tile.liquidType(reader.ReadByte());
+                                                }
+                                            }
+                                        }
+                                        WorldGen.RangeFrame(tileX, tileY, tileX + width, tileY + length);
+                                        NetMessage.TrySendData(20, -1, args.Msg.whoAmI, null, Math.Max(width, length), tileX, tileY);
+                                    }
                                 }
                             }
                             break;
                         case PacketTypes.ProjectileNew:
                             {
-                                var projIndex = reader.ReadInt16();
-                                var position = reader.ReadVector2();
-                                var velocity = reader.ReadVector2();
-                                var owner = reader.ReadByte();
-                                var projType = reader.ReadInt16();
-                                BitsByte projFlags = reader.ReadByte();
-                                if (projFlags[0])
+                                if (IsPC[args.Msg.whoAmI])
                                 {
-                                    reader.ReadSingle();
-                                }
-                                if (projFlags[1])
-                                {
-                                    reader.ReadSingle();
-                                }
-                                var hasBannerToRespondTo = projFlags[3] ? reader.ReadUInt16() : 0;
-                                var damage = projFlags[4] ? reader.ReadInt16() : 0;
-                                var knockback = projFlags[5] ? reader.ReadSingle() : 0;
-                                var index = TShock.Utils.SearchProjectile(projIndex, owner);
-                                args.Handled = true;
-                                var eventArgs = new NewProjectileEventArgs
-                                {
-                                    Data = new MemoryStream(args.Msg.readBuffer, args.Index, args.Length),
-                                    Identity = projIndex,
-                                    Position = position,
-                                    Velocity = velocity,
-                                    Knockback = knockback,
-                                    Damage = (short)damage,
-                                    Owner = owner,
-                                    Type = projType,
-                                    Index = index,
-                                    Player = player,
-                                };
-                                NewProjectile.Invoke(null, eventArgs);
-                                if (eventArgs.Handled)
-                                {
-                                    return;
-                                }
-                                lock (player.RecentlyCreatedProjectiles)
-                                {
-                                    if (!player.RecentlyCreatedProjectiles.Any(p => p.Index == index))
+                                    var projIndex = reader.ReadInt16();
+                                    var position = reader.ReadVector2();
+                                    var velocity = reader.ReadVector2();
+                                    var owner = reader.ReadByte();
+                                    var projType = reader.ReadInt16();
+                                    BitsByte projFlags = reader.ReadByte();
+                                    if (projFlags[0])
                                     {
-                                        player.RecentlyCreatedProjectiles.Add(new GetDataHandlers.ProjectileStruct()
-                                        {
-                                            Index = index,
-                                            Type = projType,
-                                            CreatedAt = DateTime.Now
-                                        });
+                                        reader.ReadSingle();
+                                    }
+                                    if (projFlags[1])
+                                    {
+                                        reader.ReadSingle();
+                                    }
+                                    if (!projFlags[3])
+                                    {
+                                        return;
+                                    }
+                                    var hasBannerToRespondTo = reader.ReadUInt16();
+                                    byte[] buffer = reader.ReadToEnd();
+                                    for (int i = 0; i < buffer.Length; i++)
+                                    {
+                                        args.Msg.readBuffer[(int)(reader.BaseStream.Position + args.Index - 2)] = buffer[i];
                                     }
                                 }
                             }

@@ -252,10 +252,6 @@ namespace Crossplay
             }
         }
 
-        /*
-         * As of (shortly after) the release of TShock 1.4.2.3, TerrariaServerAPI introduced the NetSendNetData hook,
-         * which allows for NetModules to be read on non-proxy platforms, so LoadNetModule can be fixed for TShock.
-         */
         private void HandleNetModules(SendNetDataEventArgs args)
         {
             byte[] moduleData = args.packet.Buffer.Data;
@@ -291,7 +287,7 @@ namespace Crossplay
         {
             for (int i = 0; i < 255; i++)
             {
-                if (Netplay.Clients[i] != null && Netplay.Clients[i].Socket == socket)
+                if (Netplay.Clients[i].Socket == socket)
                 {
                     return i;
                 }

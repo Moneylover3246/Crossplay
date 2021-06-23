@@ -1,12 +1,12 @@
 ﻿using System;
 using System.IO;
-using OTAPI.Tile;
+using System.Linq;
+using Microsoft.Xna.Framework;
 using Terraria;
-using Terraria.ID;
 using Terraria.Net.Sockets;
 using TerrariaApi.Server;
 using TShockAPI;
-using TShockAPI.Net;
+using static TShockAPI.GetDataHandlers;
 
 namespace Crossplay
 {
@@ -17,9 +17,9 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.3.2");
+        public override Version Version => new Version("1.0");
 
-        public bool[] IsMobile = new bool[Main.maxPlayers];
+        public bool[] IsPC = new bool[Main.maxPlayers];
         public Crossplay(Main game) : base(game)
         {
             Order = -1;
@@ -28,7 +28,6 @@ namespace Crossplay
         {
             ServerApi.Hooks.NetGetData.Register(this, GetData, 1);
             ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, 10);
-            ServerApi.Hooks.NetSendNetData.Register(this, HandleNetModules);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
         }
 
@@ -38,7 +37,6 @@ namespace Crossplay
             {
                 ServerApi.Hooks.NetGetData.Deregister(this, GetData);
                 ServerApi.Hooks.NetSendBytes.Deregister(this, SendBytes);
-                ServerApi.Hooks.NetSendNetData.Deregister(this, HandleNetModules);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
             }
             base.Dispose(disposing);
@@ -46,6 +44,7 @@ namespace Crossplay
         // Try to handle data manipulation before tshock + other plugins do so
         private void GetData(GetDataEventArgs args)
         {
+            TSPlayer player = TShock.Players[args.Msg.whoAmI];
             MemoryStream memoryStream = new MemoryStream(args.Msg.readBuffer, args.Index, args.Length);
             using (BinaryReader reader = new BinaryReader(memoryStream))
             {
@@ -56,12 +55,12 @@ namespace Crossplay
                         case PacketTypes.ConnectRequest:
                             {
                                 string version = reader.ReadString();
-                                if (version == "Terraria230" || version == "Terraria233")
+                                if (version == "Terraria238")
                                 {
-                                    IsMobile[args.Msg.whoAmI] = true;
+                                    IsPC[args.Msg.whoAmI] = true;
                                     byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
                                     Console.ForegroundColor = ConsoleColor.Green;
-                                    Console.WriteLine($"[Crossplay] Changing version of index {args.Msg.whoAmI} from {Convert(version)} => v1.4.2.3");
+                                    Console.WriteLine($"[Crossplay] Changing version of index {args.Msg.whoAmI} from {Convert(version)} => v1.4.0.5");
                                     Console.ResetColor();
                                     args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), buffer);
                                 }
@@ -69,44 +68,77 @@ namespace Crossplay
                             break;
                         case PacketTypes.TileSendSquare:
                             {
-                                if (IsMobile[args.Msg.whoAmI])
+                                if (IsPC[args.Msg.whoAmI])
                                 {
-                                    ushort size = reader.ReadUInt16();
-                                    byte changeType = 0;
-                                    if ((size & 32768) > 0)
-                                    {
-                                        changeType = reader.ReadByte();
-                                    }
-                                    short tileX = reader.ReadInt16();
-                                    short tileY = reader.ReadInt16();
+                                    var tileX = reader.ReadInt16();
+                                    var tileY = reader.ReadInt16();
+                                    var width = reader.ReadByte();
+                                    var length = reader.ReadByte();
+                                    var tileChangeType = reader.ReadByte();
 
-                                    SendTileRectHandler handler = new SendTileRectHandler();
-                                    GetDataHandlers.SendTileRectEventArgs STREventArgs = new GetDataHandlers.SendTileRectEventArgs()
+                                    var eventArgs = new SendTileSquareEventArgs()
                                     {
-                                        Player = TShock.Players[args.Msg.whoAmI],
+                                        Player = player,
+                                        Data = new MemoryStream(args.Msg.readBuffer, args.Index, args.Length),
+                                        Size = Math.Min(width, length),
                                         TileX = tileX,
-                                        TileY = tileY,
-                                        ChangeType = (TileChangeType)changeType,
-                                        Data = memoryStream,
-                                        Width = (byte)size,
-                                        Length = (byte)size,
+                                        TileY = tileY
                                     };
+                                    SendTileSquare.Invoke(null, eventArgs);
                                     args.Handled = true;
-                                    if (SendTileRectHandler.ShouldSkipProcessing(STREventArgs))
+                                }
+                            }
+                            break;
+                        case PacketTypes.ProjectileNew:
+                            {
+                                var projIndex = reader.ReadInt16();
+                                var position = reader.ReadVector2();
+                                var velocity = reader.ReadVector2();
+                                var owner = reader.ReadByte();
+                                var projType = reader.ReadInt16();
+                                BitsByte projFlags = reader.ReadByte();
+                                if (projFlags[0])
+                                {
+                                    reader.ReadSingle();
+                                }
+                                if (projFlags[1])
+                                {
+                                    reader.ReadSingle();
+                                }
+                                var hasBannerToRespondTo = projFlags[3] ? reader.ReadUInt16() : 0;
+                                var damage = projFlags[4] ? reader.ReadInt16() : 0;
+                                var knockback = projFlags[5] ? reader.ReadSingle() : 0;
+                                var index = TShock.Utils.SearchProjectile(projIndex, owner);
+                                args.Handled = true;
+                                var eventArgs = new NewProjectileEventArgs
+                                {
+                                    Data = new MemoryStream(args.Msg.readBuffer, args.Index, args.Length),
+                                    Identity = projIndex,
+                                    Position = position,
+                                    Velocity = velocity,
+                                    Knockback = knockback,
+                                    Damage = (short)damage,
+                                    Owner = owner,
+                                    Type = projType,
+                                    Index = index,
+                                    Player = player,
+                                };
+                                NewProjectile.Invoke(null, eventArgs);
+                                if (eventArgs.Handled)
+                                {
+                                    return;
+                                }
+                                lock (player.RecentlyCreatedProjectiles)
+                                {
+                                    if (!player.RecentlyCreatedProjectiles.Any(p => p.Index == index))
                                     {
-                                        return;
-                                    }
-                                    bool[,] processed = new bool[size, size];
-                                    NetTile[,] tiles = new NetTile[size, size];
-                                    MemoryStream stream = new MemoryStream(args.Msg.readBuffer, (int)(args.Index + reader.BaseStream.Position), args.Length); ;
-                                    for (int x = 0; x < size; x++)
-                                    {
-                                        for (int y = 0; y < size; y++)
+                                        player.RecentlyCreatedProjectiles.Add(new GetDataHandlers.ProjectileStruct()
                                         {
-                                            tiles[x, y] = new NetTile(memoryStream);
-                                        }
+                                            Index = index,
+                                            Type = projType,
+                                            CreatedAt = DateTime.Now
+                                        });
                                     }
-                                    handler.IterateTileRect(tiles, processed, STREventArgs);
                                 }
                             }
                             break;
@@ -125,7 +157,7 @@ namespace Crossplay
             int playerIndex = args.Socket.Id;
             try
             {
-                if (IsMobile[playerIndex])
+                if (IsPC[playerIndex])
                 {
                     using (BinaryReader reader = new BinaryReader(new MemoryStream(args.Buffer, 0, args.Buffer.Length)))
                     {
@@ -136,10 +168,10 @@ namespace Crossplay
                             case PacketTypes.ContinueConnecting:
                                 {
                                     byte playerID = reader.ReadByte();
-                                    bool value = reader.ReadBoolean();
                                     byte[] data = new PacketFactory()
                                         .SetType(3)
                                         .PackByte(playerID)
+                                        .PackByte(0)
                                         .GetByteData();
                                     TShock.Players[playerIndex].SendRawData(data);
                                 }
@@ -149,13 +181,13 @@ namespace Crossplay
                                     byte[] buffer = reader.ReadBytes(22);
                                     string worldName = reader.ReadString();
                                     byte[] buffer2 = reader.ReadBytes(103);
-                                    reader.ReadByte(); // Main.tenthAnniversaryWorld
                                     byte[] buffer3 = reader.ReadBytes(27);
                                     byte[] data = new PacketFactory()
                                         .SetType(7)
                                         .PackBuffer(buffer)
                                         .PackString(worldName)
                                         .PackBuffer(buffer2)
+                                        .PackByte(0)
                                         .PackBuffer(buffer3)
                                         .GetByteData();
                                     TShock.Players[playerIndex].SendRawData(data);
@@ -164,83 +196,25 @@ namespace Crossplay
                                 break;
                             case PacketTypes.TileSendSquare:
                                 {
+                                    ushort size = reader.ReadUInt16();
+                                    byte changeType = 0;
+                                    if ((size & 32768) > 0)
+                                    {
+                                        changeType = reader.ReadByte();
+                                    }
                                     short tileX = reader.ReadInt16();
                                     short tileY = reader.ReadInt16();
-                                    ushort width = reader.ReadByte();
-                                    ushort length = reader.ReadByte();
-                                    byte tileChangeType = reader.ReadByte();
-                                    ushort size = Math.Min(width, length);
-                                    PacketFactory data = new PacketFactory()
+                                    byte[] tiledata = reader.ReadToEnd();
+                                    TShock.Players[playerIndex].SendRawData(new PacketFactory()
                                         .SetType(20)
-                                        .PackUInt16(size);
-                                    if (tileChangeType != 0)
-                                    {
-                                        data.PackByte(tileChangeType);
-                                    }
-                                    data.PackInt16(tileX);
-                                    data.PackInt16(tileY);
-                                    data.PackBuffer(reader.ReadToEnd());
-                                    byte[] buffer = data.GetByteData();
-                                    TShock.Players[playerIndex].SendRawData(buffer);
+                                        .PackInt16(tileX)
+                                        .PackInt16(tileY)
+                                        .PackByte((byte)size)
+                                        .PackByte((byte)size)
+                                        .PackByte(changeType)
+                                        .PackBuffer(tiledata)
+                                        .GetByteData());
                                     args.Handled = true;
-                                }
-                                break;
-                            case PacketTypes.ProjectileNew:
-                                {
-                                    byte[] buffer = reader.ReadBytes(19);
-                                    short projID = reader.ReadInt16();
-                                    if (projID > 949)
-                                    {
-                                        args.Handled = true;
-                                        return;
-                                    }
-                                    BitsByte projFlags = reader.ReadByte();
-                                    float AI0 = 0f;
-                                    float AI1 = 0f;
-                                    if (projFlags[0])
-                                    {
-                                        AI0 = reader.ReadSingle();
-                                    }
-                                    if (projFlags[1])
-                                    {
-                                        AI1 = reader.ReadSingle();
-                                    }
-                                    int bannerIdToRespondTo = projFlags[3] ? reader.ReadUInt16() : 0;
-                                    var newData = new PacketFactory()
-                                        .SetType(27)
-                                        .PackBuffer(buffer)
-                                        .PackInt16(projID)
-                                        .PackByte(projFlags);
-                                    if (projFlags[0])
-                                    {
-                                        newData.PackSingle(AI0);
-                                    }
-                                    if (projFlags[1])
-                                    {
-                                        newData.PackSingle(AI1);
-                                    }
-                                    newData.PackBuffer(reader.ReadToEnd());
-                                    TShock.Players[playerIndex].SendRawData(newData.GetByteData());
-                                    args.Handled = true;
-                                }
-                                break;
-                            case PacketTypes.NpcUpdate:
-                                {
-                                    reader.ReadBytes(20);
-                                    BitsByte npcFlags = reader.ReadByte();
-                                    reader.ReadByte();
-                                    for (int i = 2; i < 6; i++)
-                                    {
-                                        if (npcFlags[i])
-                                        {
-                                            reader.ReadSingle();
-                                        }
-                                    }
-                                    int type = reader.ReadInt16();
-                                    if (type > 662)
-                                    {
-                                        args.Handled = true;
-                                    }
                                 }
                                 break;
                         }
@@ -252,35 +226,9 @@ namespace Crossplay
             }
         }
 
-        private void HandleNetModules(SendNetDataEventArgs args)
-        {
-            byte[] moduleData = args.packet.Buffer.Data;
-            using (BinaryReader reader = new BinaryReader(new MemoryStream(moduleData)))
-            {
-                reader.ReadInt16(); // Packet Length
-                reader.ReadByte(); // Msg Type
-                ushort netModuleID = reader.ReadUInt16();
-                switch (netModuleID)
-                {
-                    case 4:
-                        byte unlockType = reader.ReadByte();
-                        short npcID = reader.ReadInt16();
-                        if (npcID > 662)
-                        {
-                            int index = GetIndexFromSocket(args.socket);
-                            if (IsMobile[index])
-                            {
-                                args.Handled = true;
-                                return;
-                            }
-                        }
-                        break;
-                }
-            }
-        }
         private void OnLeave(LeaveEventArgs args)
         {
-            IsMobile[args.Who] = false;
+            IsPC[args.Who] = false;
         }
 
         private int GetIndexFromSocket(ISocket socket)
@@ -305,6 +253,8 @@ namespace Crossplay
                     return "v1.4.1.1";
                 case "Terraria234":
                     return "v1.4.1.2";
+                case "Terraria238":
+                    return "v1.4.2.3";
             }
             return "";
         }

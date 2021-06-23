@@ -14,10 +14,10 @@ namespace Crossplay
     public class Crossplay : TerrariaPlugin
     {
         public static int Header = 3;
-        public override string Name => "Crossplay for Terraria";
+        public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.4.2.3");
+        public override Version Version => new Version("1.3.2");
 
         public bool[] IsMobile = new bool[Main.maxPlayers];
         public Crossplay(Main game) : base(game)
@@ -56,12 +56,12 @@ namespace Crossplay
                         case PacketTypes.ConnectRequest:
                             {
                                 string version = reader.ReadString();
-                                if (version == "Terraria230")
+                                if (version == "Terraria230" || version == "Terraria233")
                                 {
                                     IsMobile[args.Msg.whoAmI] = true;
                                     byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
                                     Console.ForegroundColor = ConsoleColor.Green;
-                                    Console.WriteLine("[Crossplay] Fixing mobile for index " + args.Msg.whoAmI);
+                                    Console.WriteLine($"[Crossplay] Changing version of index {args.Msg.whoAmI} from {Convert(version)} => v1.4.2.3");
                                     Console.ResetColor();
                                     args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), buffer);
                                 }
@@ -169,7 +169,7 @@ namespace Crossplay
                                     ushort width = reader.ReadByte();
                                     ushort length = reader.ReadByte();
                                     byte tileChangeType = reader.ReadByte();
-                                    ushort size = Math.Max(width, length);
+                                    ushort size = Math.Min(width, length);
                                     PacketFactory data = new PacketFactory()
                                         .SetType(20)
                                         .PackUInt16(size);
@@ -179,66 +179,7 @@ namespace Crossplay
                                     }
                                     data.PackInt16(tileX);
                                     data.PackInt16(tileY);
-                                    data.PackBuffer(reader.ReadBytes((int)(reader.BaseStream.Length - reader.BaseStream.Position)));
-                                    for (int x = tileX + width; x < tileX + size; x++)
-                                    {
-                                        for (int y = tileY + length; y < tileY + size; y++)
-                                        {
-                                            BitsByte tileFlags = 0;
-                                            BitsByte tileFlags2 = 0;
-                                            byte tileColor = 0;
-                                            byte tileWallColor = 0;
-                                            ITile tile = Main.tile[x, y];
-                                            tileFlags[0] = tile.active();
-                                            tileFlags[2] = tile.wall > 0;
-                                            tileFlags[3] = tile.liquid > 0;
-                                            tileFlags[4] = tile.wire();
-                                            tileFlags[7] = tile.inActive();
-                                            tileFlags2[0] = tile.wire2();
-                                            tileFlags2[1] = tile.wire3();
-
-                                            if (tile.active() && tile.color() > 0)
-                                            {
-                                                tileFlags2[2] = true;
-                                                tileColor = tile.color();
-                                            }
-                                            if (tile.wall > 0 && tile.wallColor() > 0)
-                                            {
-                                                tileFlags2[3] = true;
-                                                tileWallColor = tile.wallColor();
-                                            }
-                                            tileFlags2 += (byte)(tile.slope() << 4);
-                                            tileFlags2[7] = tile.wire4();
-                                            data.PackByte(tileFlags);
-                                            data.PackByte(tileFlags2);
-                                            if (tileColor > 0)
-                                            {
-                                                data.PackByte(tileColor);
-                                            }
-                                            if (tileWallColor > 0)
-                                            {
-                                                data.PackByte(tileWallColor);
-                                            }
-                                            if (tile.active())
-                                            {
-                                                data.PackUInt16(tile.type);
-                                                if (Main.tileFrameImportant[tile.type])
-                                                {
-                                                    data.PackInt16(tile.frameX);
-                                                    data.PackInt16(tile.frameY);
-                                                }
-                                            }
-                                            if (tile.wall > 0)
-                                            {
-                                                data.PackUInt16(tile.wall);
-                                            }
-                                            if (tile.liquid > 0)
-                                            {
-                                                data.PackByte(tile.liquid);
-                                                data.PackByte(tile.liquidType());
-                                            }
-                                        }
-                                    }
+                                    data.PackBuffer(reader.ReadToEnd());
                                     byte[] buffer = data.GetByteData();
                                     TShock.Players[playerIndex].SendRawData(buffer);
                                     args.Handled = true;
@@ -246,12 +187,41 @@ namespace Crossplay
                                 break;
                             case PacketTypes.ProjectileNew:
                                 {
-                                    reader.ReadBytes(19);
+                                    byte[] buffer = reader.ReadBytes(19);
                                     short projID = reader.ReadInt16();
                                     if (projID > 949)
                                     {
                                         args.Handled = true;
+                                        return;
                                     }
+                                    BitsByte projFlags = reader.ReadByte();
+                                    float AI0 = 0f;
+                                    float AI1 = 0f;
+                                    if (projFlags[0])
+                                    {
+                                        AI0 = reader.ReadSingle();
+                                    }
+                                    if (projFlags[1])
+                                    {
+                                        AI1 = reader.ReadSingle();
+                                    }
+                                    int bannerIdToRespondTo = projFlags[3] ? reader.ReadUInt16() : 0;
+                                    var newData = new PacketFactory()
+                                        .SetType(27)
+                                        .PackBuffer(buffer)
+                                        .PackInt16(projID)
+                                        .PackByte(projFlags);
+                                    if (projFlags[0])
+                                    {
+                                        newData.PackSingle(AI0);
+                                    }
+                                    if (projFlags[1])
+                                    {
+                                        newData.PackSingle(AI1);
+                                    }
+                                    newData.PackBuffer(reader.ReadToEnd());
+                                    TShock.Players[playerIndex].SendRawData(newData.GetByteData());
+                                    args.Handled = true;
                                 }
                                 break;
                             case PacketTypes.NpcUpdate:
@@ -309,18 +279,6 @@ namespace Crossplay
                             }
                         }
                         break;
-                    case 5:
-                        short itemID = reader.ReadInt16();
-                        if (itemID > 5044)
-                        {
-                            int index = GetIndexFromSocket(args.socket);
-                            if (IsMobile[index])
-                            {
-                                args.Handled = true;
-                                return;
-                            }
-                        }
-                        break;
                 }
             }
         }
@@ -339,6 +297,20 @@ namespace Crossplay
                 }
             }
             return -1;
+        }
+
+        private string Convert(string protocol)
+        {
+            switch (protocol)
+            {
+                case "Terraria230":
+                    return "v1.4.0.5";
+                case "Terraria233":
+                    return "v1.4.1.1";
+                case "Terraria234":
+                    return "v1.4.1.2";
+            }
+            return "";
         }
     }
 }

@@ -58,6 +58,7 @@ namespace Crossplay
                                 string version = reader.ReadString();
                                 if (version == "Terraria230" || version == "Terraria233")
                                 {
+                                    TShock.Players[args.Msg.whoAmI].SendData(PacketTypes.Status, "Fixing Version...", 1);
                                     IsMobile[args.Msg.whoAmI] = true;
                                     byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
                                     Console.ForegroundColor = ConsoleColor.Green;

@@ -58,6 +58,7 @@ namespace Crossplay
                                 string version = reader.ReadString();
                                 if (version == "Terraria238")
                                 {
+                                    player.SendData(PacketTypes.Status, "Fixing Version...", 1);
                                     IsPC[args.Msg.whoAmI] = true;
                                     byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
                                     Console.ForegroundColor = ConsoleColor.Green;

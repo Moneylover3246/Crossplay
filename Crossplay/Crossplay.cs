@@ -235,6 +235,7 @@ namespace Crossplay
                                         .PackByte(0)
                                         .GetByteData();
                                     TShock.Players[playerIndex].SendRawData(data);
+                                    args.Handled = true;
                                 }
                                 break;
                             case PacketTypes.WorldInfo:

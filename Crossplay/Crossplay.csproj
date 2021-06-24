@@ -5,6 +5,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\References\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="OTAPI">
       <HintPath>..\References\OTAPI.dll</HintPath>
     </Reference>

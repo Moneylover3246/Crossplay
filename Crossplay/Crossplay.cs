@@ -19,6 +19,8 @@ namespace Crossplay
         public override string Description => "Enables crossplay for terraria";
         public override Version Version => new Version("1.3.2");
 
+        internal static ConfigFile Config = new ConfigFile();
+
         public bool[] IsMobile = new bool[Main.maxPlayers];
         public Crossplay(Main game) : base(game)
         {
@@ -30,6 +32,7 @@ namespace Crossplay
             ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, 10);
             ServerApi.Hooks.NetSendNetData.Register(this, HandleNetModules);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
+            Config = ConfigFile.Read(Path.Combine(TShock.SavePath, "Crossplay.json"));
         }
 
         protected override void Dispose(bool disposing)
@@ -66,6 +69,17 @@ namespace Crossplay
                                     Console.ResetColor();
                                     args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), buffer);
                                 }
+                            }
+                            break;
+                        case PacketTypes.PlayerInfo:
+                            if (Config.EnableJourneySupport)
+                            {
+                                if (Main.GameMode == 3)
+                                {
+                                    args.Msg.readBuffer[args.Length] |= 8;
+                                    return;
+                                }
+                                args.Msg.readBuffer[args.Length] &= 247;
                             }
                             break;
                         case PacketTypes.TileSendSquare:

@@ -20,7 +20,7 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.3.3");
+        public override Version Version => new Version("1.4");
 
         private static List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237 };
         public static string ConfigPath => Path.Combine("tshock", "Crossplay.json");

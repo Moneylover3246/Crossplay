@@ -7,6 +7,8 @@ namespace Crossplay
     public class CrossplaySettings
     {
         public bool EnableJourneySupport = false;
+
+        public bool EnablePacketDebugging = false;
     }
 
     public class CrossplayConfig : ConfigFile<CrossplaySettings>

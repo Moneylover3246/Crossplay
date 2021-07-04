@@ -238,7 +238,17 @@ namespace Crossplay
                                         ushort width = reader.ReadByte();
                                         ushort length = reader.ReadByte();
                                         byte tileChangeType = reader.ReadByte();
-                                        ushort size = Math.Min(width, length);
+                                        args.Handled = true;
+                                        ushort size = Math.Max(width, length);
+                                        if (width != length)
+                                        {
+                                            if (Config.Settings.EnablePacketDebugging)
+                                            {
+                                                Console.WriteLine("[Crossplay Debug] SendTileRect width and length are uneven.");
+                                            }
+                                            TShock.Players[playerIndex].SendTileSquare(tileX, tileY, size);
+                                            return;
+                                        }
                                         PacketFactory data = new PacketFactory()
                                             .SetType(20)
                                             .PackUInt16(size);
@@ -250,8 +260,7 @@ namespace Crossplay
                                         data.PackInt16(tileY);
                                         data.PackBuffer(reader.ReadToEnd());
                                         byte[] buffer = data.GetByteData();
-                                        client.Socket.AsyncSend(buffer, 0, buffer.Length, client.ServerWriteCallBack);
-                                        args.Handled = true;
+                                        client.Socket.AsyncSend(buffer, 0, buffer.Length, client.ServerWriteCallBack); 
                                     }
                                 }
                                 break;

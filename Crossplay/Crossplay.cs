@@ -110,7 +110,7 @@ namespace Crossplay
                         if (AllowedVersions.Contains(version))
                         {
                             Non238Clients.Add(index, version);
-                            NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
+                            NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version"), 1);
                             byte[] buffer = new PacketFactory()
                                 .SetType(1)
                                 .PackString("Terraria" + Main.curRelease)

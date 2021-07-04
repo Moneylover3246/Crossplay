@@ -20,7 +20,7 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.4");
+        public override Version Version => new Version("1.4.1");
 
         private static List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237 };
         public static string ConfigPath => Path.Combine("tshock", "Crossplay.json");
@@ -244,7 +244,7 @@ namespace Crossplay
                                         {
                                             if (Config.Settings.EnablePacketDebugging)
                                             {
-                                                Console.WriteLine("[Crossplay Debug] SendTileRect width and length are uneven.");
+                                                Console.WriteLine($"[Crossplay Debug] SendTileRect width and length are uneven, sending tile square with a size of {size}");
                                             }
                                             TShock.Players[playerIndex].SendTileSquare(tileX, tileY, size);
                                             return;

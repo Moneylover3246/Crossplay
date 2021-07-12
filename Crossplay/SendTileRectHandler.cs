@@ -16,7 +16,7 @@ namespace Crossplay
 	/// <summary>
 	/// This class was taken from TShockAPI.Handlers.SendTileRectHandler, we need to recreate this class since some of the methods are internal
 	/// </summary>
-    class SendTileRectHandler
+    internal class SendTileRectHandler
     {
 		public static List<int> FlowerBootItems = new List<int>
 		{
@@ -290,13 +290,11 @@ namespace Crossplay
 				}
 				return true;
 			}
-
 			if (args.Player.IsBouncerThrottled())
 			{
 				args.Player.SendTileRect(args.TileX, args.TileY, args.Length, args.Width);
 				return true;
 			}
-
 			if (args.Player.IsBeingDisabled())
 			{
 				args.Player.SendTileRect(args.TileX, args.TileY, args.Length, args.Width);

@@ -5,11 +5,14 @@ public class PacketFactory
 {
     private MemoryStream memoryStream;
     public BinaryWriter writer;
-    public PacketFactory()
+    public PacketFactory(bool writeOffset = true)
     {
         memoryStream = new MemoryStream();
         writer = new BinaryWriter(memoryStream);
-        writer.BaseStream.Position = 3L;
+        if (writeOffset)
+        {
+            writer.BaseStream.Position = 3L;
+        }
     }
 
     public PacketFactory SetType(short type)
@@ -99,17 +102,15 @@ public class PacketFactory
         writer.Write((short)currentPosition);
         writer.BaseStream.Position = currentPosition;
     }
-    public static string ByteArrayToString(byte[] ba)
-    {
-        StringBuilder hex = new StringBuilder(ba.Length * 2);
-        foreach (byte b in ba)
-            hex.AppendFormat("{0:x2}", b);
-        return hex.ToString();
-    }
 
     public byte[] GetByteData()
     {
         UpdateLength();
+        return memoryStream.ToArray();
+    }
+
+    public byte[] ToArray()
+    {
         return memoryStream.ToArray();
     }
 }

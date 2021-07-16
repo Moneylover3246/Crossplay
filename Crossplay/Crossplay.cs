@@ -279,11 +279,11 @@ namespace Crossplay
                                             TShock.Players[playerIndex].SendTileRect(tileX, tileY, (byte)header, (byte)header, (TileChangeType)changeType);
                                             return;
                                         }
-
                                         if (changeType != 0)
                                         {
                                             header |= 32768;
                                         }
+                                        var size = header & 32767;
                                         PacketFactory data = new PacketFactory()
                                             .SetType(20)
                                             .PackUInt16(header);
@@ -297,9 +297,9 @@ namespace Crossplay
 
                                         BitsByte tileflags = 0;
                                         BitsByte tileflags2 = 0;
-                                        for (int x = 0; x < header; x++)
+                                        for (int x = 0; x < size; x++)
                                         {
-                                            for (int y = 0; y < header; y++)
+                                            for (int y = 0; y < size; y++)
                                             {
                                                 tileflags = reader.ReadByte();
                                                 tileflags2 = reader.ReadByte();

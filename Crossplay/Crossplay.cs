@@ -351,25 +351,25 @@ namespace Crossplay
                                         short projID = reader.ReadInt16();
                                         if (projID > 949)
                                         {
+                                            var old = projID;
                                             switch (projID)
                                             {
                                                 case 953:
                                                     projID = 612;
-                                                    Log($"/ ProjectileUpdate - swapped type from 953 -> 612 from previously exceeded maxType ({projID})", true, ConsoleColor.DarkGreen);
+                                                    
                                                     break;
                                                 case 954:
                                                     projID = 504;
-                                                    Log($"/ ProjectileUpdate - swapped type from 954 -> 504 from previously exceeded maxType ({projID})", true, ConsoleColor.DarkGreen);
                                                     break;
                                                 case 955:
                                                     projID = 12;
-                                                    Log($"/ ProjectileUpdate - swapped type from 955 -> 12 from previously exceeded maxType ({projID})", true, ConsoleColor.DarkGreen);
                                                     break;
                                                 default:
                                                     args.Handled = true;
                                                     Log($"/ ProjectileUpdate - handled index {playerIndex} from exceeded maxType ({projID})", true, ConsoleColor.Red);
                                                     return;
                                             }
+                                            Log($"/ ProjectileUpdate - swapped type from {old} -> {projID} from previously exceeded maxType", true, ConsoleColor.DarkGreen);
                                         }
                                         BitsByte projFlags = reader.ReadByte();
                                         float AI0 = projFlags[0] ? reader.ReadSingle() : 0f;

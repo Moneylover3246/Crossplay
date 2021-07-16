@@ -18,7 +18,7 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.0");
+        public override Version Version => new Version("1.1");
 
         public bool[] IsPC = new bool[Main.maxPlayers];
         public Crossplay(Main game) : base(game)

@@ -18,7 +18,7 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.1");
+        public override Version Version => new Version("1.1.1");
 
         public bool[] IsPC = new bool[Main.maxPlayers];
         public Crossplay(Main game) : base(game)
@@ -266,6 +266,7 @@ namespace Crossplay
                             case PacketTypes.TileSendSquare:
                                 {
                                     ushort header = reader.ReadUInt16();
+                                    var size = (byte)(header & 32767);
                                     byte changeType = 0;
                                     if ((header & 32768) > 0)
                                     {
@@ -278,8 +279,8 @@ namespace Crossplay
                                         .SetType(20)
                                         .PackInt16(tileX)
                                         .PackInt16(tileY)
-                                        .PackByte((byte)(header & 32767))
-                                        .PackByte((byte)(header & 32767))
+                                        .PackByte(size)
+                                        .PackByte(size)
                                         .PackByte(changeType)
                                         .PackBuffer(tiledata)
                                         .GetByteData());

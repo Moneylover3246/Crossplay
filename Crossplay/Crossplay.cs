@@ -27,8 +27,8 @@ namespace Crossplay
         }
         public override void Initialize()
         {
-            ServerApi.Hooks.NetGetData.Register(this, GetData, 1);
-            ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, 10);
+            ServerApi.Hooks.NetGetData.Register(this, GetData, int.MaxValue);
+            ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, -int.MaxValue);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
         }
 
@@ -51,26 +51,26 @@ namespace Crossplay
             {
                 try
                 {
-                    switch (args.MsgID)
+                    if (IsPC[args.Msg.whoAmI] || args.MsgID == PacketTypes.ConnectRequest)
                     {
-                        case PacketTypes.ConnectRequest:
-                            {
-                                string version = reader.ReadString();
-                                if (version == "Terraria238")
+                        switch (args.MsgID)
+                        {
+                            case PacketTypes.ConnectRequest:
                                 {
-                                    player.SendData(PacketTypes.Status, "Fixing Version...", 1);
-                                    IsPC[args.Msg.whoAmI] = true;
-                                    byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
-                                    Console.ForegroundColor = ConsoleColor.Green;
-                                    Console.WriteLine($"[Crossplay] Changing version of index {args.Msg.whoAmI} from {Convert(version)} => v1.4.0.5");
-                                    Console.ResetColor();
-                                    args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), buffer);
+                                    string version = reader.ReadString();
+                                    if (version == "Terraria238")
+                                    {
+                                        player.SendData(PacketTypes.Status, "Fixing Version...", 1);
+                                        IsPC[args.Msg.whoAmI] = true;
+                                        byte[] buffer = new PacketFactory().SetType(1).PackString("Terraria" + Main.curRelease).GetByteData();
+                                        Console.ForegroundColor = ConsoleColor.Green;
+                                        Console.WriteLine($"[Crossplay] Changing version of index {args.Msg.whoAmI} from {Convert(version)} => v1.4.0.5");
+                                        Console.ResetColor();
+                                        args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), buffer);
+                                    }
                                 }
-                            }
-                            break;
-                        case PacketTypes.TileSendSquare:
-                            {
-                                if (IsPC[args.Msg.whoAmI])
+                                break;
+                            case PacketTypes.TileSendSquare:
                                 {
                                     var tileX = reader.ReadInt16();
                                     var tileY = reader.ReadInt16();
@@ -170,11 +170,18 @@ namespace Crossplay
                                         NetMessage.TrySendData(20, -1, args.Msg.whoAmI, null, Math.Max(width, length), tileX, tileY);
                                     }
                                 }
-                            }
-                            break;
-                        case PacketTypes.ProjectileNew:
-                            {
-                                if (IsPC[args.Msg.whoAmI])
+                                break;
+                            case PacketTypes.NpcAddBuff:
+                                var npcID = reader.ReadInt16();
+                                var buff = reader.ReadUInt16();
+                                var time = reader.ReadInt16();
+                                if (buff > 322)
+                                {
+                                    args.Handled = true;
+                                    player.SendData(PacketTypes.NpcUpdateBuff, null, npcID);
+                                }
+                                break;
+                            case PacketTypes.ProjectileNew:
                                 {
                                     var projIndex = reader.ReadInt16();
                                     var position = reader.ReadVector2();
@@ -201,8 +208,8 @@ namespace Crossplay
                                         args.Msg.readBuffer[(int)(reader.BaseStream.Position + args.Index - 2)] = buffer[i];
                                     }
                                 }
-                            }
-                            break;
+                                break;
+                        }
                     }
                 }
                 catch (Exception ex)

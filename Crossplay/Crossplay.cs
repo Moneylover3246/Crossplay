@@ -265,9 +265,9 @@ namespace Crossplay
                                 break;
                             case PacketTypes.TileSendSquare:
                                 {
-                                    ushort size = reader.ReadUInt16();
+                                    ushort header = reader.ReadUInt16();
                                     byte changeType = 0;
-                                    if ((size & 32768) > 0)
+                                    if ((header & 32768) > 0)
                                     {
                                         changeType = reader.ReadByte();
                                     }
@@ -278,8 +278,8 @@ namespace Crossplay
                                         .SetType(20)
                                         .PackInt16(tileX)
                                         .PackInt16(tileY)
-                                        .PackByte((byte)size)
-                                        .PackByte((byte)size)
+                                        .PackByte((byte)(header & 32767))
+                                        .PackByte((byte)(header & 32767))
                                         .PackByte(changeType)
                                         .PackBuffer(tiledata)
                                         .GetByteData());

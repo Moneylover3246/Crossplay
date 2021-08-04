@@ -151,7 +151,7 @@ namespace Crossplay
                             NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
                             byte[] connectRequest = new PacketFactory()
                                 .SetType(1)
-                                .PackString("Terraria" + Main.curRelease)
+                                .PackString($"Terraria{Main.curRelease}")
                                 .GetByteData();
                             Log($"Changing version of index {args.Msg.whoAmI} from {Convert(version)} => v1.4.2.3", color: ConsoleColor.Green);
                             args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), connectRequest);
@@ -558,13 +558,13 @@ namespace Crossplay
                 case "Terraria234":
                     return "v1.4.1.2";
                 case "Terraria235":
-                    return "1.4.2";
+                    return "v1.4.2";
                 case "Terraria236":
-                    return "1.4.2.1";
+                    return "v1.4.2.1";
                 case "Terraria237":
-                    return "1.4.2.2";
+                    return "v1.4.2.2";
                 case "Terraria238":
-                    return "1.4.2.3";
+                    return "v1.4.2.3";
             }
             return "";
         }

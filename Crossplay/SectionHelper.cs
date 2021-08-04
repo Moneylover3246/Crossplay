@@ -127,7 +127,6 @@ namespace Crossplay
 					.PackBuffer(compressed.ToArray())
 					.GetByteData();
 			}
-			return Array.Empty<byte>();
 		}
     }
 }

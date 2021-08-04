@@ -141,12 +141,12 @@ namespace Crossplay
                         {
                             ClientVersions[index] = version;
                             NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
-                            byte[] buffer = new PacketFactory()
+                            byte[] connectRequest = new PacketFactory()
                                 .SetType(1)
                                 .PackString("Terraria" + Main.curRelease)
                                 .GetByteData();
                             Log($"Changing version of index {args.Msg.whoAmI} from {Convert(version)} => v1.4.2.3", color: ConsoleColor.Green);
-                            args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), buffer);
+                            args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), connectRequest);
                         }
                     }
                     return;
@@ -245,19 +245,19 @@ namespace Crossplay
                     {
                         case PacketTypes.WorldInfo:
                             {
-                                byte[] buffer = reader.ReadBytes(22);
+                                byte[] bytes = reader.ReadBytes(22);
                                 string worldName = reader.ReadString();
-                                byte[] buffer2 = reader.ReadBytes(103);
+                                byte[] bytes2 = reader.ReadBytes(103);
                                 reader.ReadByte(); // Main.tenthAnniversaryWorld
-                                byte[] buffer3 = reader.ReadBytes(27);
-                                byte[] newdata = new PacketFactory()
+                                byte[] bytes3 = reader.ReadBytes(27);
+                                byte[] worldInfo = new PacketFactory()
                                     .SetType(7)
-                                    .PackBuffer(buffer)
+                                    .PackBuffer(bytes)
                                     .PackString(worldName)
-                                    .PackBuffer(buffer2)
-                                    .PackBuffer(buffer3)
+                                    .PackBuffer(bytes2)
+                                    .PackBuffer(bytes3)
                                     .GetByteData();
-                                client.Socket.AsyncSend(newdata, 0, newdata.Length, client.ServerWriteCallBack);
+                                client.Socket.AsyncSend(worldInfo, 0, worldInfo.Length, client.ServerWriteCallBack);
                                 args.Handled = true;
                             }
                             break;
@@ -277,12 +277,9 @@ namespace Crossplay
                                     }
                                     streamRead.Position = 0L;
                                 }
-                                byte[] newdata = SectionHelper.WriteDecompressedSection(streamRead, playerVersion);
-                                if (newdata.Length != 0)
-                                {
-                                    client.Socket.AsyncSend(newdata, 0, newdata.Length, client.ServerWriteCallBack);
-                                    args.Handled = true;
-                                }
+                                byte[] tileSection = SectionHelper.WriteDecompressedSection(streamRead, playerVersion);
+                                client.Socket.AsyncSend(tileSection, 0, tileSection.Length, client.ServerWriteCallBack);
+                                args.Handled = true;
                             }
                             break;
                         case PacketTypes.TileSendSquare:
@@ -307,15 +304,15 @@ namespace Crossplay
                                         header |= 32768;
                                     }
                                     var size = header & 32767;
-                                    PacketFactory data = new PacketFactory()
+                                    var tileWrite = new PacketFactory()
                                         .SetType(20)
                                         .PackUInt16(header);
                                     if (changeType != 0)
                                     {
-                                        data.PackByte(changeType);
+                                        tileWrite.PackByte(changeType);
                                     }
-                                    data.PackInt16(tileX);
-                                    data.PackInt16(tileY);
+                                    tileWrite.PackInt16(tileX);
+                                    tileWrite.PackInt16(tileY);
                                     var position = reader.BaseStream.Position;
 
                                     BitsByte tileflags = 0;
@@ -337,7 +334,7 @@ namespace Crossplay
                                             if (tileflags[0])
                                             {
                                                 var tileType = reader.ReadUInt16();
-                                                MaxTileType.TryGetValue(playerVersion, out int maxTileType);
+                                                var maxTileType = MaxTileType[playerVersion];
                                                 if (tileType > maxTileType)
                                                 {
                                                     stream.Position -= 2;
@@ -359,10 +356,10 @@ namespace Crossplay
                                         }
                                     }
                                     stream.Position = position;
-                                    data.PackBuffer(reader.ReadToEnd());
+                                    tileWrite.PackBuffer(reader.ReadToEnd());
 
-                                    byte[] newdataBuffer = data.GetByteData();
-                                    client.Socket.AsyncSend(newdataBuffer, 0, newdataBuffer.Length, client.ServerWriteCallBack);
+                                    byte[] tileSquare = tileWrite.GetByteData();
+                                    client.Socket.AsyncSend(tileSquare, 0, tileSquare.Length, client.ServerWriteCallBack);
                                 }
                             }
                             break;
@@ -415,18 +412,18 @@ namespace Crossplay
                                     {
                                         return;
                                     }
-                                    var newdata = new PacketFactory()
+                                    var projWrite = new PacketFactory()
                                         .SetType(27)
                                         .PackBuffer(bytes)
                                         .PackInt16(projType)
                                         .PackByte(projFlags);
-                                    if (AI0 != 0f) newdata.PackSingle(AI0);
-                                    if (AI1 != 0f) newdata.PackSingle(AI1);
+                                    if (AI0 != 0f) projWrite.PackSingle(AI0);
+                                    if (AI1 != 0f) projWrite.PackSingle(AI1);
 
-                                    newdata.PackBuffer(reader.ReadToEnd());
+                                    projWrite.PackBuffer(reader.ReadToEnd());
 
-                                    byte[] packet = newdata.GetByteData();
-                                    client.Socket.AsyncSend(packet, 0, packet.Length, client.ServerWriteCallBack);
+                                    byte[] projectilePacket = projWrite.GetByteData();
+                                    client.Socket.AsyncSend(projectilePacket, 0, projectilePacket.Length, client.ServerWriteCallBack);
                                     args.Handled = true;
                                 }
                             }
@@ -456,9 +453,9 @@ namespace Crossplay
                             {
                                 var playerId = reader.ReadByte();
 
-                                var playerBuffWrite = new PacketFactory();
-                                playerBuffWrite.SetType(50);
-                                playerBuffWrite.PackByte(playerId);
+                                var buffWrite = new PacketFactory();
+                                buffWrite.SetType(50);
+                                buffWrite.PackByte(playerId);
                                 for (int i = 0; i < 22; i++)
                                 {
                                     var buffType = reader.ReadUInt16();
@@ -467,9 +464,9 @@ namespace Crossplay
                                         Log($"/ PlayerBuff - Changed buffType {buffType} to 0 for player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
                                         buffType = 0;
                                     }
-                                    playerBuffWrite.PackUInt16(buffType);
+                                    buffWrite.PackUInt16(buffType);
                                 }
-                                var playerBuff = playerBuffWrite.GetByteData();
+                                var playerBuff = buffWrite.GetByteData();
                                 client.Socket.AsyncSend(playerBuff, 0, playerBuff.Length, client.ServerWriteCallBack);
                                 args.Handled = true;
                             }

@@ -408,12 +408,9 @@ namespace Crossplay
                                     float AI0 = projFlags[0] ? reader.ReadSingle() : 0f;
                                     float AI1 = projFlags[1] ? reader.ReadSingle() : 0f;
                                     int bannerIdToRespondTo = projFlags[3] ? reader.ReadUInt16() : 0;
-                                    if (bannerIdToRespondTo == 0)
-                                    {
-                                        return;
-                                    }
                                     var projWrite = new PacketFactory()
                                         .SetType(27)
+                                        .PackInt16(identity)
                                         .PackBuffer(bytes)
                                         .PackInt16(projType)
                                         .PackByte(projFlags);

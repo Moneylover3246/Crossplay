@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
+using Microsoft.Xna.Framework;
 using OTAPI.Tile;
 using Terraria;
 using Terraria.ID;
@@ -28,8 +30,8 @@ namespace Crossplay
 
         public static CrossplayConfig Config = new CrossplayConfig();
 
-        private static Dictionary<int, int> Non238Clients = new Dictionary<int, int>();
-        private static Dictionary<int, int> MaxNPCID = new Dictionary<int, int>()
+        private static readonly int[] ClientVersions = new int[Main.maxPlayers];
+        private static readonly Dictionary<int, int> MaxNPCID = new Dictionary<int, int>()
         {
             { 230, 662 },
             { 233, 664 },
@@ -38,7 +40,7 @@ namespace Crossplay
             { 236, 664 },
             { 237, 666 },
         };
-        public static Dictionary<int, int> MaxTileType = new Dictionary<int, int>()
+        public static readonly Dictionary<int, int> MaxTileType = new Dictionary<int, int>()
         {
             { 230, 622 },
             { 233, 623 },
@@ -46,6 +48,24 @@ namespace Crossplay
             { 235, 623 },
             { 236, 623 },
             { 237, 623 },
+        };
+        public static readonly Dictionary<int, int> MaxBuffType = new Dictionary<int, int>()
+        {
+            { 230, 322 },
+            { 233, 329 },
+            { 234, 329 },
+            { 235, 329 },
+            { 236, 329 },
+            { 237, 329 },
+        };
+        public static readonly Dictionary<int, int> MaxItemType = new Dictionary<int, int>()
+        {
+            { 230, 5044 },
+            { 233, 5087 },
+            { 234, 5087 },
+            { 235, 5087 },
+            { 236, 5087 },
+            { 237, 5087 },
         };
 
         public Crossplay(Main game) : base(game)
@@ -119,7 +139,7 @@ namespace Crossplay
                     {
                         if (AllowedVersions.Contains(version))
                         {
-                            Non238Clients.Add(index, version);
+                            ClientVersions[index] = version;
                             NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
                             byte[] buffer = new PacketFactory()
                                 .SetType(1)
@@ -131,26 +151,137 @@ namespace Crossplay
                     }
                     return;
                 }
-                if (Non238Clients.ContainsKey(index))
+                if (ClientVersions[index] == 0)
                 {
-                    Non238Clients.TryGetValue(index, out int playerVersion);
-                    switch (args.MsgID)
-                    {
-                        case PacketTypes.PlayerInfo:
-                            if (Config.Settings.EnableJourneySupport)
+                    return;
+                }
+                var playerVersion = ClientVersions[index];
+                switch (args.MsgID)
+                {
+                    case PacketTypes.PlayerInfo:
+                        if (Config.Settings.EnableJourneySupport)
+                        {
+                            byte value = args.Msg.readBuffer[args.Length];
+                            if (Main.GameMode == 3)
                             {
-                                byte value = args.Msg.readBuffer[args.Length];
-                                if (Main.GameMode == 3)
+                                args.Msg.readBuffer[args.Length] |= 8;
+                            }
+                            else
+                            {
+                                args.Msg.readBuffer[args.Length] &= 247;
+                            }
+                            if (args.Msg.readBuffer[args.Length] != value)
+                            {
+                                Log($"[Crossplay] {(Main.GameMode == 3 ? "Enabled" : "Disabled")} journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
+                            }
+                        }
+                        break;
+                    case PacketTypes.TileSendSquare:
+                        {
+                            if (playerVersion < 234)
+                            {
+                                ushort header = reader.ReadUInt16();
+                                var size = header & 32767;
+                                byte changeType = 0;
+                                if ((header & 0x8000) > 0)
                                 {
-                                    args.Msg.readBuffer[args.Length] |= 8;
+                                    changeType = reader.ReadByte();
                                 }
-                                else
+                                short tileX = reader.ReadInt16();
+                                short tileY = reader.ReadInt16();
+
+                                SendTileRectHandler handler = new SendTileRectHandler();
+                                GetDataHandlers.SendTileRectEventArgs STREventArgs = new GetDataHandlers.SendTileRectEventArgs()
                                 {
-                                    args.Msg.readBuffer[args.Length] &= 247;
+                                    Player = TShock.Players[args.Msg.whoAmI],
+                                    TileX = tileX,
+                                    TileY = tileY,
+                                    ChangeType = (TileChangeType)changeType,
+                                    Data = stream,
+                                    Width = (byte)size,
+                                    Length = (byte)size,
+                                };
+                                args.Handled = true;
+                                if (SendTileRectHandler.ShouldSkipProcessing(STREventArgs))
+                                {
+                                    return;
                                 }
-                                if (args.Msg.readBuffer[args.Length] != value)
+                                bool[,] processed = new bool[size, size];
+                                NetTile[,] tiles = new NetTile[size, size];
+                                MemoryStream stream2 = new MemoryStream(args.Msg.readBuffer, (int)(args.Index + reader.BaseStream.Position), args.Length); ;
+                                for (int x = 0; x < size; x++)
                                 {
-                                    Log($"[Crossplay] {(Main.GameMode == 3 ? "Enabled" : "Disabled")} journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
+                                    for (int y = 0; y < size; y++)
+                                    {
+                                        tiles[x, y] = new NetTile(stream2);
+                                    }
+                                }
+                                handler.IterateTileRect(tiles, processed, STREventArgs);
+                            }
+                        }
+                        break;
+                }
+            }
+        }
+
+        private void SendBytes(SendBytesEventArgs args)
+        {
+            int socketId = args.Socket.Id;
+            RemoteClient client = Netplay.Clients[socketId];
+            if (ClientVersions[socketId] == 0)
+            {
+                return;
+            }
+            int playerVersion = ClientVersions[socketId];
+            var stream = new MemoryStream(args.Buffer, 0, args.Buffer.Length);
+            BinaryWriter writer = new BinaryWriter(stream);
+            using (BinaryReader reader = new BinaryReader(stream))
+            {
+                try
+                {
+                    int packetlength = reader.ReadUInt16();
+                    int msgType = reader.ReadByte();
+                    switch ((PacketTypes)msgType)
+                    {
+                        case PacketTypes.WorldInfo:
+                            {
+                                byte[] buffer = reader.ReadBytes(22);
+                                string worldName = reader.ReadString();
+                                byte[] buffer2 = reader.ReadBytes(103);
+                                reader.ReadByte(); // Main.tenthAnniversaryWorld
+                                byte[] buffer3 = reader.ReadBytes(27);
+                                byte[] newdata = new PacketFactory()
+                                    .SetType(7)
+                                    .PackBuffer(buffer)
+                                    .PackString(worldName)
+                                    .PackBuffer(buffer2)
+                                    .PackBuffer(buffer3)
+                                    .GetByteData();
+                                client.Socket.AsyncSend(newdata, 0, newdata.Length, client.ServerWriteCallBack);
+                                args.Handled = true;
+                            }
+                            break;
+                        case PacketTypes.TileSendSection:
+                            {
+                                bool compressed = reader.ReadBoolean();
+                                MemoryStream streamRead = new MemoryStream();
+                                streamRead.Write(args.Buffer, 4, args.Buffer.Length - 4);
+                                streamRead.Position = 0L;
+                                if (compressed)
+                                {
+                                    using (DeflateStream deflateStream = new DeflateStream(streamRead, CompressionMode.Decompress, true))
+                                    {
+                                        streamRead = new MemoryStream();
+                                        deflateStream.CopyTo(streamRead);
+                                        deflateStream.Close();
+                                    }
+                                    streamRead.Position = 0L;
+                                }
+                                byte[] newdata = SectionHelper.WriteDecompressedSection(streamRead, playerVersion);
+                                if (newdata.Length != 0)
+                                {
+                                    client.Socket.AsyncSend(newdata, 0, newdata.Length, client.ServerWriteCallBack);
+                                    args.Handled = true;
                                 }
                             }
                             break;
@@ -158,268 +289,211 @@ namespace Crossplay
                             {
                                 if (playerVersion < 234)
                                 {
-                                    ushort header = reader.ReadUInt16();
-                                    var size = header & 32767;
-                                    byte changeType = 0;
-                                    if ((header & 0x8000) > 0)
-                                    {
-                                        changeType = reader.ReadByte();
-                                    }
                                     short tileX = reader.ReadInt16();
                                     short tileY = reader.ReadInt16();
-
-                                    SendTileRectHandler handler = new SendTileRectHandler();
-                                    GetDataHandlers.SendTileRectEventArgs STREventArgs = new GetDataHandlers.SendTileRectEventArgs()
-                                    {
-                                        Player = TShock.Players[args.Msg.whoAmI],
-                                        TileX = tileX,
-                                        TileY = tileY,
-                                        ChangeType = (TileChangeType)changeType,
-                                        Data = stream,
-                                        Width = (byte)size,
-                                        Length = (byte)size,
-                                    };
+                                    ushort width = reader.ReadByte();
+                                    ushort length = reader.ReadByte();
+                                    byte changeType = reader.ReadByte();
+                                    ushort header = Math.Max(width, length);
                                     args.Handled = true;
-                                    if (SendTileRectHandler.ShouldSkipProcessing(STREventArgs))
+                                    if (width != length)
                                     {
+                                        Log($"/ SendTileRect - Relooping tileRect of index {socketId} because of irregular dimensions", true, ConsoleColor.Cyan);
+                                        TShock.Players[socketId].SendTileRect(tileX, tileY, (byte)header, (byte)header, (TileChangeType)changeType);
                                         return;
                                     }
-                                    bool[,] processed = new bool[size, size];
-                                    NetTile[,] tiles = new NetTile[size, size];
-                                    MemoryStream stream2 = new MemoryStream(args.Msg.readBuffer, (int)(args.Index + reader.BaseStream.Position), args.Length); ;
+                                    if (changeType != 0)
+                                    {
+                                        header |= 32768;
+                                    }
+                                    var size = header & 32767;
+                                    PacketFactory data = new PacketFactory()
+                                        .SetType(20)
+                                        .PackUInt16(header);
+                                    if (changeType != 0)
+                                    {
+                                        data.PackByte(changeType);
+                                    }
+                                    data.PackInt16(tileX);
+                                    data.PackInt16(tileY);
+                                    var position = reader.BaseStream.Position;
+
+                                    BitsByte tileflags = 0;
+                                    BitsByte tileflags2 = 0;
                                     for (int x = 0; x < size; x++)
                                     {
                                         for (int y = 0; y < size; y++)
                                         {
-                                            tiles[x, y] = new NetTile(stream2);
+                                            tileflags = reader.ReadByte();
+                                            tileflags2 = reader.ReadByte();
+                                            if (tileflags2[2])
+                                            {
+                                                reader.ReadByte(); // color
+                                            }
+                                            if (tileflags2[3])
+                                            {
+                                                reader.ReadByte(); // wall color
+                                            }
+                                            if (tileflags[0])
+                                            {
+                                                var tileType = reader.ReadUInt16();
+                                                MaxTileType.TryGetValue(playerVersion, out int maxTileType);
+                                                if (tileType > maxTileType)
+                                                {
+                                                    stream.Position -= 2;
+                                                    writer.Write((ushort)(Main.tileFrameImportant[tileType] ? 72 : 1));
+                                                }
+                                                if (Main.tileFrameImportant[tileType])
+                                                {
+                                                    reader.ReadBytes(4);
+                                                }
+                                            }
+                                            if (tileflags[2])
+                                            {
+                                                reader.ReadUInt16(); // Wall type
+                                            }
+                                            if (tileflags[3])
+                                            {
+                                                reader.ReadBytes(2); // Liquid type + amount
+                                            }
                                         }
                                     }
-                                    handler.IterateTileRect(tiles, processed, STREventArgs);
+                                    stream.Position = position;
+                                    data.PackBuffer(reader.ReadToEnd());
+
+                                    byte[] newdataBuffer = data.GetByteData();
+                                    client.Socket.AsyncSend(newdataBuffer, 0, newdataBuffer.Length, client.ServerWriteCallBack);
+                                }
+                            }
+                            break;
+                        case PacketTypes.ItemDrop:
+                        case PacketTypes.UpdateItemDrop:
+                            {
+                                var itemIdentity = reader.ReadInt16();
+                                if (Main.item[itemIdentity].type > MaxItemType[playerVersion])
+                                {
+                                    Log($"/ ItemDrop - Blocked itemType {Main.item[itemIdentity].type} from sending to player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
+                                    args.Handled = true;
+                                    return;
+                                }
+                            }
+                            break;
+                        case PacketTypes.ProjectileNew:
+                            {
+                                if (playerVersion < 237)
+                                {
+                                    var identity = reader.ReadInt16();
+                                    byte[] bytes = reader.ReadBytes(17);
+                                    short projType = reader.ReadInt16();
+                                    if (projType > 949)
+                                    {
+                                        var old = projType;
+                                        switch (projType)
+                                        {
+                                            case 953:
+                                                projType = 612;
+                                                break;
+                                            case 954:
+                                                projType = 504;
+                                                break;
+                                            case 955:
+                                                projType = 12;
+                                                break;
+                                            default:
+                                                args.Handled = true;
+                                                Log($"/ ProjectileUpdate - handled index {socketId} from exceeded maxType ({projType})", true, ConsoleColor.Red);
+                                                return;
+                                        }
+                                        Log($"/ ProjectileUpdate - swapped type from {old} -> {projType} from previously exceeded maxType", true, ConsoleColor.DarkGreen);
+                                    }
+
+                                    BitsByte projFlags = reader.ReadByte();
+                                    float AI0 = projFlags[0] ? reader.ReadSingle() : 0f;
+                                    float AI1 = projFlags[1] ? reader.ReadSingle() : 0f;
+                                    int bannerIdToRespondTo = projFlags[3] ? reader.ReadUInt16() : 0;
+                                    if (bannerIdToRespondTo == 0)
+                                    {
+                                        return;
+                                    }
+                                    var newdata = new PacketFactory()
+                                        .SetType(27)
+                                        .PackBuffer(bytes)
+                                        .PackInt16(projType)
+                                        .PackByte(projFlags);
+                                    if (AI0 != 0f) newdata.PackSingle(AI0);
+                                    if (AI1 != 0f) newdata.PackSingle(AI1);
+
+                                    newdata.PackBuffer(reader.ReadToEnd());
+
+                                    byte[] packet = newdata.GetByteData();
+                                    client.Socket.AsyncSend(packet, 0, packet.Length, client.ServerWriteCallBack);
+                                    args.Handled = true;
+                                }
+                            }
+                            break;
+                        case PacketTypes.NpcUpdate:
+                            {
+                                reader.ReadBytes(20);
+                                BitsByte npcFlags = reader.ReadByte();
+                                reader.ReadByte();
+                                for (int i = 2; i < 6; i++)
+                                {
+                                    if (npcFlags[i])
+                                    {
+                                        reader.ReadSingle();
+                                    }
+                                }
+                                int type = reader.ReadInt16();
+                                var MaxNpcID = MaxNPCID[playerVersion];
+                                if (type > MaxNpcID)
+                                {
+                                    Log($"/ NpcUpdate - Preventing NPC packet from sending to index {socketId} because it exceeds npcType limit", true, ConsoleColor.Cyan);
+                                    args.Handled = true;
+                                }
+                            }
+                            break;
+                        case PacketTypes.PlayerBuff:
+                            {
+                                var playerId = reader.ReadByte();
+
+                                var playerBuffWrite = new PacketFactory();
+                                playerBuffWrite.SetType(50);
+                                playerBuffWrite.PackByte(playerId);
+                                for (int i = 0; i < 22; i++)
+                                {
+                                    var buffType = reader.ReadUInt16();
+                                    if (buffType > MaxBuffType[playerVersion])
+                                    {
+                                        Log($"/ PlayerBuff - Changed buffType {buffType} to 0 for player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
+                                        buffType = 0;
+                                    }
+                                    playerBuffWrite.PackUInt16(buffType);
+                                }
+                                var playerBuff = playerBuffWrite.GetByteData();
+                                client.Socket.AsyncSend(playerBuff, 0, playerBuff.Length, client.ServerWriteCallBack);
+                                args.Handled = true;
+                            }
+                            break;
+                        case PacketTypes.PlayerAddBuff:
+                            {
+                                var playerId = reader.ReadByte();
+                                var buff = reader.ReadUInt16();
+                                if (buff > MaxBuffType[playerVersion])
+                                {
+                                    Log($"/ PlayerAddBuff - Blocked buff add ({buff}) to player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
+                                    args.Handled = true;
+                                    return;
                                 }
                             }
                             break;
                     }
                 }
-            }
-        }
-
-        private void SendBytes(SendBytesEventArgs args)
-        {
-            int playerIndex = args.Socket.Id;
-            RemoteClient client = Netplay.Clients[playerIndex];
-            if (Non238Clients.ContainsKey(playerIndex))
-            {
-                Non238Clients.TryGetValue(playerIndex, out int playerVersion);
-                var stream = new MemoryStream(args.Buffer, 0, args.Buffer.Length);
-                BinaryWriter writer = new BinaryWriter(stream);
-                using (BinaryReader reader = new BinaryReader(stream))
+                catch (IOException ex)
                 {
-                    try
-                    {
-                        int packetlength = reader.ReadUInt16();
-                        int msgType = reader.ReadByte();
-                        switch ((PacketTypes)msgType)
-                        {
-                            case PacketTypes.WorldInfo:
-                                {
-                                    byte[] buffer = reader.ReadBytes(22);
-                                    string worldName = reader.ReadString();
-                                    byte[] buffer2 = reader.ReadBytes(103);
-                                    reader.ReadByte(); // Main.tenthAnniversaryWorld
-                                    byte[] buffer3 = reader.ReadBytes(27);
-                                    byte[] newdata = new PacketFactory()
-                                        .SetType(7)
-                                        .PackBuffer(buffer)
-                                        .PackString(worldName)
-                                        .PackBuffer(buffer2)
-                                        .PackBuffer(buffer3)
-                                        .GetByteData();
-                                    client.Socket.AsyncSend(newdata, 0, newdata.Length, client.ServerWriteCallBack);
-                                    args.Handled = true;
-                                }
-                                break;
-                            case PacketTypes.TileSendSection:
-                                {
-                                    bool compressed = reader.ReadBoolean();
-                                    MemoryStream streamRead = new MemoryStream();
-                                    streamRead.Write(args.Buffer, 4, args.Buffer.Length - 4);
-                                    streamRead.Position = 0L;
-                                    if (compressed)
-                                    {
-                                        using (DeflateStream deflateStream = new DeflateStream(streamRead, CompressionMode.Decompress, true))
-                                        {
-                                            streamRead = new MemoryStream();
-                                            deflateStream.CopyTo(streamRead);
-                                            deflateStream.Close();
-                                        }
-                                        streamRead.Position = 0L;
-                                    }
-                                    byte[] newdata = SectionHelper.WriteDecompressedSection(streamRead, playerVersion);
-                                    if (newdata.Length != 0)
-                                    {
-                                        client.Socket.AsyncSend(newdata, 0, newdata.Length, client.ServerWriteCallBack);
-                                        args.Handled = true;
-                                    }
-                                }
-                                break;
-                            case PacketTypes.TileSendSquare:
-                                {
-                                    if (playerVersion < 234)
-                                    {
-                                        short tileX = reader.ReadInt16();
-                                        short tileY = reader.ReadInt16();
-                                        ushort width = reader.ReadByte();
-                                        ushort length = reader.ReadByte();
-                                        byte changeType = reader.ReadByte();
-                                        ushort header = Math.Max(width, length);
-                                        args.Handled = true;
-                                        if (width != length)
-                                        {
-                                            Log($"/ SendTileRect - Relooping tileRect of index {playerIndex} because of irregular dimensions", true, ConsoleColor.Cyan);
-                                            TShock.Players[playerIndex].SendTileRect(tileX, tileY, (byte)header, (byte)header, (TileChangeType)changeType);
-                                            return;
-                                        }
-                                        if (changeType != 0)
-                                        {
-                                            header |= 32768;
-                                        }
-                                        var size = header & 32767;
-                                        PacketFactory data = new PacketFactory()
-                                            .SetType(20)
-                                            .PackUInt16(header);
-                                        if (changeType != 0)
-                                        {
-                                            data.PackByte(changeType);
-                                        }
-                                        data.PackInt16(tileX);
-                                        data.PackInt16(tileY);
-                                        var position = reader.BaseStream.Position;
-
-                                        BitsByte tileflags = 0;
-                                        BitsByte tileflags2 = 0;
-                                        for (int x = 0; x < size; x++)
-                                        {
-                                            for (int y = 0; y < size; y++)
-                                            {
-                                                tileflags = reader.ReadByte();
-                                                tileflags2 = reader.ReadByte();
-                                                if (tileflags2[2])
-                                                {
-                                                    reader.ReadByte(); // color
-                                                }
-                                                if (tileflags2[3])
-                                                {
-                                                    reader.ReadByte(); // wall color
-                                                }
-                                                if (tileflags[0])
-                                                {
-                                                    var tileType = reader.ReadUInt16();
-                                                    MaxTileType.TryGetValue(playerVersion, out int maxTileType);
-                                                    if (tileType > maxTileType)
-                                                    {
-                                                        stream.Position -= 2;
-                                                        writer.Write((ushort)(Main.tileFrameImportant[tileType] ? 72 : 1));
-                                                    }
-                                                    if (Main.tileFrameImportant[tileType])
-                                                    {
-                                                        reader.ReadBytes(4);
-                                                    }
-                                                }
-                                                if (tileflags[2])
-                                                {
-                                                    reader.ReadUInt16(); // Wall type
-                                                }
-                                                if (tileflags[3])
-                                                {
-                                                    reader.ReadBytes(2); // Liquid type + amount
-                                                }
-                                            }
-                                        }
-                                        stream.Position = position;
-                                        data.PackBuffer(reader.ReadToEnd());
-
-                                        byte[] newdataBuffer = data.GetByteData();
-                                        client.Socket.AsyncSend(newdataBuffer, 0, newdataBuffer.Length, client.ServerWriteCallBack);
-                                    }
-                                }
-                                break;
-                            case PacketTypes.ProjectileNew:
-                                {
-                                    if (playerVersion < 237)
-                                    {
-                                        byte[] buffer = reader.ReadBytes(19);
-                                        short projID = reader.ReadInt16();
-                                        if (projID > 949)
-                                        {
-                                            var old = projID;
-                                            switch (projID)
-                                            {
-                                                case 953:
-                                                    projID = 612;
-                                                    break;
-                                                case 954:
-                                                    projID = 504;
-                                                    break;
-                                                case 955:
-                                                    projID = 12;
-                                                    break;
-                                                default:
-                                                    args.Handled = true;
-                                                    Log($"/ ProjectileUpdate - handled index {playerIndex} from exceeded maxType ({projID})", true, ConsoleColor.Red);
-                                                    return;
-                                            }
-                                            Log($"/ ProjectileUpdate - swapped type from {old} -> {projID} from previously exceeded maxType", true, ConsoleColor.DarkGreen);
-                                        }
-                                        BitsByte projFlags = reader.ReadByte();
-                                        float AI0 = projFlags[0] ? reader.ReadSingle() : 0f;
-                                        float AI1 = projFlags[1] ? reader.ReadSingle() : 0f;
-                                        int bannerIdToRespondTo = projFlags[3] ? reader.ReadUInt16() : 0;
-
-                                        var newdata = new PacketFactory()
-                                            .SetType(27)
-                                            .PackBuffer(buffer)
-                                            .PackInt16(projID)
-                                            .PackByte(projFlags);
-                                        var pack = AI0 > 0f ? newdata.PackSingle(AI0) : null;
-                                        var pack2 = AI1 > 0f ? newdata.PackSingle(AI1) : null;
-                                        newdata.PackBuffer(reader.ReadToEnd());
-
-                                        byte[] newdataBuffer = newdata.GetByteData();
-                                        client.Socket.AsyncSend(newdataBuffer, 0, newdataBuffer.Length, client.ServerWriteCallBack);
-                                        args.Handled = true;
-                                    }
-                                }
-                                break;
-                            case PacketTypes.NpcUpdate:
-                                {
-                                    reader.ReadBytes(20);
-                                    BitsByte npcFlags = reader.ReadByte();
-                                    reader.ReadByte();
-                                    for (int i = 2; i < 6; i++)
-                                    {
-                                        if (npcFlags[i])
-                                        {
-                                            reader.ReadSingle();
-                                        }
-                                    }
-                                    int type = reader.ReadInt16();
-                                    MaxNPCID.TryGetValue(playerVersion, out int maxNpcID);
-                                    if (type > maxNpcID)
-                                    {
-                                        Log($"/ NpcUpdate - Preventing NPC packet from sending to index {playerIndex} because it exceeds npcType limit", true, ConsoleColor.Cyan);
-                                        args.Handled = true;
-                                    }
-                                }
-                                break;
-                        }
-                    }
-                    catch (IOException ex)
-                    {
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.ToString());
-                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
                 }
             }
         }
@@ -450,14 +524,15 @@ namespace Crossplay
                         byte unlockType = reader.ReadByte();
                         short npcID = reader.ReadInt16();
                         int index = GetIndexFromSocket(args.socket);
-                        if (Non238Clients.ContainsKey(index))
+                        var playerVersion = ClientVersions[index];
+                        if (playerVersion == 0)
                         {
-                            Non238Clients.TryGetValue(index, out int playerVersion);
-                            MaxNPCID.TryGetValue(playerVersion, out int maxNpcID);
-                            if (npcID > maxNpcID)
-                            {
-                                args.Handled = true;
-                            }
+                            return;
+                        }
+                        var MaxNpcID = MaxNPCID[playerVersion];
+                        if (npcID > MaxNpcID)
+                        {
+                            args.Handled = true;
                         }
                         break;
                 }
@@ -466,7 +541,7 @@ namespace Crossplay
 
         private void OnLeave(LeaveEventArgs args)
         {
-            Non238Clients.Remove(args.Who);
+            ClientVersions[args.Who] = 0;
         }
 
         private string Convert(int version)
@@ -480,6 +555,14 @@ namespace Crossplay
                     return "v1.4.1.1";
                 case "Terraria234":
                     return "v1.4.1.2";
+                case "Terraria235":
+                    return "1.4.2";
+                case "Terraria236":
+                    return "1.4.2.1";
+                case "Terraria237":
+                    return "1.4.2.2";
+                case "Terraria238":
+                    return "1.4.2.3";
             }
             return "";
         }

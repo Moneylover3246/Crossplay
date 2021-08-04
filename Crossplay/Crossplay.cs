@@ -57,6 +57,15 @@ namespace Crossplay
             { 236, 329 },
             { 237, 329 },
         };
+        public static readonly Dictionary<int, int> MaxProjectileType = new Dictionary<int, int>()
+        {
+            { 230, 949 },
+            { 233, 953 },
+            { 234, 953 },
+            { 235, 955 },
+            { 236, 955 },
+            { 237, 955 },
+        };
         public static readonly Dictionary<int, int> MaxItemType = new Dictionary<int, int>()
         {
             { 230, 5044 },
@@ -381,7 +390,7 @@ namespace Crossplay
                                     var identity = reader.ReadInt16();
                                     byte[] bytes = reader.ReadBytes(17);
                                     short projType = reader.ReadInt16();
-                                    if (projType > 949)
+                                    if (projType > MaxProjectileType[playerVersion])
                                     {
                                         var old = projType;
                                         switch (projType)

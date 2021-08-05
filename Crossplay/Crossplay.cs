@@ -154,7 +154,8 @@ namespace Crossplay
                                 .PackString($"Terraria{Main.curRelease}")
                                 .GetByteData();
                             Log($"Changing version of index {args.Msg.whoAmI} from {Convert(version)} => v1.4.2.3", color: ConsoleColor.Green);
-                            args.Msg.readBuffer.SwapBytes(args.Index - Header, args.Length + (Header - 1), connectRequest);
+
+                            Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
                         }
                     }
                     return;

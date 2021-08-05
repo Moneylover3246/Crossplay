@@ -113,7 +113,7 @@ namespace Crossplay
             if (disposing)
             {
                 ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
-                ServerApi.Hooks.NetReceiveBytes.Register(this, ReceiveBytes);
+                ServerApi.Hooks.NetReceiveBytes.Deregister(this, ReceiveBytes);
                 ServerApi.Hooks.NetGetData.Deregister(this, GetData);
                 ServerApi.Hooks.NetSendBytes.Deregister(this, SendBytes);
                 ServerApi.Hooks.NetSendNetData.Deregister(this, HandleNetModules);

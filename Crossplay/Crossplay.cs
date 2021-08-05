@@ -11,7 +11,6 @@ using TerrariaApi.Server;
 
 using TShockAPI;
 using TShockAPI.Hooks;
-using TShockAPI.Net;
 
 namespace Crossplay
 {
@@ -205,7 +204,7 @@ namespace Crossplay
                                 return;
                             }
                             Clients[index].Version = releaseNumber;
-                            if (releaseNumber == Main.curRelease)
+                            if (!AllowedVersions.Contains(releaseNumber))
                                 return;
                             NetMessage.SendData(9, index, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
                             Log($"Changing version of index {index} from {Convert(releaseNumber)} => {Convert(Main.curRelease)}", color: ConsoleColor.Green);

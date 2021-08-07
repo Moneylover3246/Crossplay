@@ -524,18 +524,37 @@ namespace Crossplay
                 switch (netModuleID)
                 {
                     case 4:
-                        byte unlockType = reader.ReadByte();
-                        short npcID = reader.ReadInt16();
-                        int index = GetIndexFromSocket(args.socket);
-                        var playerVersion = ClientVersions[index];
-                        if (playerVersion == 0)
                         {
-                            return;
+                            byte unlockType = reader.ReadByte();
+                            short npcID = reader.ReadInt16();
+                            int index = GetIndexFromSocket(args.socket);
+                            var playerVersion = ClientVersions[index];
+                            if (playerVersion == 0)
+                            {
+                                return;
+                            }
+                            var MaxNpcID = MaxNPCID[playerVersion];
+                            if (npcID > MaxNpcID)
+                            {
+                                Log($"/ NetModule (Bestiary) Blocked NpcType {npcID} for index: {index}", true, ConsoleColor.Yellow);
+                                args.Handled = true;
+                            }
                         }
-                        var MaxNpcID = MaxNPCID[playerVersion];
-                        if (npcID > MaxNpcID)
+                        break;
+                    case 5:
                         {
-                            args.Handled = true;
+                            var itemType = reader.ReadInt16();
+                            int index = GetIndexFromSocket(args.socket);
+                            var playerVersion = ClientVersions[index];
+                            if (playerVersion == 0)
+                            {
+                                return;
+                            }
+                            if (itemType > MaxItemType[playerVersion])
+                            {
+                                Log($"/ NetModule (Creative Unlocks) Blocked ItemType {itemType} for index: {index}", true, ConsoleColor.Yellow);
+                                args.Handled = true;
+                            }
                         }
                         break;
                 }

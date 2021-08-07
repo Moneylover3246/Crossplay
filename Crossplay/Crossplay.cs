@@ -304,7 +304,7 @@ namespace Crossplay
                                     args.Handled = true;
                                     if (width != length)
                                     {
-                                        Log($"/ SendTileRect - Relooping tileRect of index {socketId} because of irregular dimensions", true, ConsoleColor.Cyan);
+                                        Log($"/ SendTileRect - Relooping tileRect for index {socketId} because of irregular dimensions", true, ConsoleColor.Cyan);
                                         TShock.Players[socketId].SendTileRect(tileX, tileY, (byte)header, (byte)header, (TileChangeType)changeType);
                                         return;
                                     }

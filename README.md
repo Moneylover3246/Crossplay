@@ -1,9 +1,5 @@
 # Crossplay
-Allows crossplay to happen in terraria servers via packet handling and manipulation
-
-## Installation
-### Update TerrariaServer
-If errors happen upon startup, make sure to visit the `References/TerrariaServer.exe` and set that file as the new version
+Allows mobile and other older-versioned players to join terraria servers on the newer versions.
 
 ### Bugs
-If there are any bugs with this plugin, feel free to DM @Moneylover3246#0322 on Discord
+Bugs or other issues with this plugin should be reported to myself. Feel free to contact me on Discord (@Moneylover3246#0322) for further assistance

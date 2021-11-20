@@ -12,7 +12,7 @@ namespace Crossplay
     {
         public static byte[] WriteDecompressedSection(MemoryStream decompressionStream, int version)
         {
-			int maxTileType = Crossplay.MaxTileType[version];
+			int maxTileType = CrossplayPlugin.MaxTileType[version];
 			using (BinaryReader reader = new BinaryReader(decompressionStream))
 			{
 				BinaryWriter writer = new BinaryWriter(decompressionStream);
@@ -61,7 +61,7 @@ namespace Crossplay
 										}
 										writer.BaseStream.Position -= 2;
 										writer.Write((ushort)newType);
-										Crossplay.Log($"/ SendSection - Processed a tile conversion from {(typeLong << 8) | typeShort} -> {newType}", true, ConsoleColor.Red);
+										CrossplayPlugin.Log($"/ SendSection - Processed a tile conversion from {(typeLong << 8) | typeShort} -> {newType}", true, ConsoleColor.Red);
 									}
 								}
 								else

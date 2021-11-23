@@ -22,9 +22,9 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.5.1");
+        public override Version Version => new Version("1.6.0");
 
-        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238 };
+        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242 };
 
         public static string ConfigPath => Path.Combine("tshock", "Crossplay.json");
 
@@ -40,6 +40,7 @@ namespace Crossplay
             { 236, 664 },
             { 237, 666 },
             { 238, 667 },
+            { 242, 669 },
         };
         public static readonly Dictionary<int, int> MaxTileType = new Dictionary<int, int>()
         {
@@ -50,6 +51,7 @@ namespace Crossplay
             { 236, 623 },
             { 237, 623 },
             { 238, 623 },
+            { 242, 624 },
         };
         public static readonly Dictionary<int, int> MaxBuffType = new Dictionary<int, int>()
         {
@@ -60,6 +62,7 @@ namespace Crossplay
             { 236, 329 },
             { 237, 329 },
             { 238, 329 },
+            { 242, 335 },
         };
         public static readonly Dictionary<int, int> MaxProjectileType = new Dictionary<int, int>()
         {
@@ -69,7 +72,8 @@ namespace Crossplay
             { 235, 955 },
             { 236, 955 },
             { 237, 955 },
-            { 238, 955 }
+            { 238, 955 },
+            { 242, 970 },
         };
         public static readonly Dictionary<int, int> MaxItemType = new Dictionary<int, int>()
         {
@@ -80,6 +84,7 @@ namespace Crossplay
             { 236, 5087 },
             { 237, 5087 },
             { 238, 5087 },
+            { 242, 5124 },
         };
 
         public CrossplayPlugin(Main game) : base(game)
@@ -149,21 +154,23 @@ namespace Crossplay
                 if ((int)args.MsgID == 1)
                 {
                     string versionstring = reader.ReadString();
-                    if (int.TryParse(versionstring.Substring(versionstring.Length - 3), out int version))
+                    if (!int.TryParse(versionstring.Substring(versionstring.Length - 3), out int version))
                     {
-                        if (AllowedVersions.Contains(version))
-                        {
-                            ClientVersions[index] = version;
-                            NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
-                            byte[] connectRequest = new PacketFactory()
-                                .SetType(1)
-                                .PackString($"Terraria{Main.curRelease}")
-                                .GetByteData();
-                            Log($"Changing version of index {args.Msg.whoAmI} from {Convert(version)} => {Convert(Main.curRelease)}", color: ConsoleColor.Green);
-
-                            Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
-                        }
+                        return;
                     }
+                    if (!AllowedVersions.Contains(version))
+                    {
+                        return;
+                    }
+                    ClientVersions[index] = version;
+                    NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
+                    byte[] connectRequest = new PacketFactory()
+                        .SetType(1)
+                        .PackString($"Terraria{Main.curRelease}")
+                        .GetByteData();
+                    Log($"Changing version of index {args.Msg.whoAmI} from {Convert(version)} => {Convert(Main.curRelease)}", color: ConsoleColor.Green);
+
+                    Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
                     return;
                 }
                 if (ClientVersions[index] == 0)
@@ -606,22 +613,25 @@ namespace Crossplay
                     return "v1.4.2.3";
                 case "Terraria242":
                     return "v1.4.3";
+                case "Terraria243":
+                    return "v1.4.3.1";
             }
             return $"Unknown{version}";
         }
 
         public static void Log(string message, bool debug = false, ConsoleColor color = ConsoleColor.White)
         {
-            Console.ForegroundColor = color;
             if (debug)
             {
                 if (Config.Settings.EnablePacketDebugging)
                 {
+                    Console.ForegroundColor = color;
                     Console.WriteLine($"[Crossplay Debug] {message}");
                     Console.ResetColor();
                 }
                 return;
             }
+            Console.ForegroundColor = color;
             Console.WriteLine($"[Crossplay] {message}");
             Console.ResetColor();
         }

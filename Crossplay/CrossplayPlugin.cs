@@ -22,9 +22,9 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.6.0");
+        public override Version Version => new Version("1.7.0");
 
-        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242 };
+        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243 };
 
         public static string ConfigPath => Path.Combine("tshock", "Crossplay.json");
 
@@ -41,6 +41,7 @@ namespace Crossplay
             { 237, 666 },
             { 238, 667 },
             { 242, 669 },
+            { 243, 669 },
         };
         public static readonly Dictionary<int, int> MaxTileType = new Dictionary<int, int>()
         {
@@ -52,6 +53,7 @@ namespace Crossplay
             { 237, 623 },
             { 238, 623 },
             { 242, 624 },
+            { 243, 624 },
         };
         public static readonly Dictionary<int, int> MaxBuffType = new Dictionary<int, int>()
         {
@@ -63,6 +65,7 @@ namespace Crossplay
             { 237, 329 },
             { 238, 329 },
             { 242, 335 },
+            { 243, 335 },
         };
         public static readonly Dictionary<int, int> MaxProjectileType = new Dictionary<int, int>()
         {
@@ -74,6 +77,7 @@ namespace Crossplay
             { 237, 955 },
             { 238, 955 },
             { 242, 970 },
+            { 243, 970 },
         };
         public static readonly Dictionary<int, int> MaxItemType = new Dictionary<int, int>()
         {
@@ -85,6 +89,7 @@ namespace Crossplay
             { 237, 5087 },
             { 238, 5087 },
             { 242, 5124 },
+            { 243, 5124 },
         };
 
         public CrossplayPlugin(Main game) : base(game)
@@ -274,7 +279,7 @@ namespace Crossplay
                                 byte[] bytes = reader.ReadBytes(22);
                                 string worldName = reader.ReadString();
                                 byte[] bytes2 = reader.ReadBytes(103);
-                                reader.ReadByte(); // Main.tenthAnniversaryWorld
+                                reader.BaseStream.Position++; // bitFlags[8]
                                 byte[] bytes3 = reader.ReadBytes(27);
                                 byte[] worldInfo = new PacketFactory()
                                     .SetType(7)
@@ -436,7 +441,7 @@ namespace Crossplay
                                     }
                                     Log($"/ ProjectileUpdate - swapped type from {old} -> {projType} from previously exceeded maxType", true, ConsoleColor.DarkGreen);
                                 }
-                                if (playerVersion < 237)
+                                if (playerVersion > 236)
                                 {
                                     return;
                                 }
@@ -462,14 +467,14 @@ namespace Crossplay
                             break;
                         case PacketTypes.NpcUpdate:
                             {
-                                reader.ReadBytes(20);
+                                reader.BaseStream.Position += 20;
                                 BitsByte npcFlags = reader.ReadByte();
-                                reader.ReadByte();
+                                reader.BaseStream.Position++;
                                 for (int i = 2; i < 6; i++)
                                 {
                                     if (npcFlags[i])
                                     {
-                                        reader.ReadSingle();
+                                        reader.BaseStream.Position += 4;
                                     }
                                 }
                                 int type = reader.ReadInt16();
@@ -484,7 +489,6 @@ namespace Crossplay
                         case PacketTypes.PlayerBuff:
                             {
                                 var playerId = reader.ReadByte();
-
                                 var buffWrite = new PacketFactory();
                                 buffWrite.SetType(50);
                                 buffWrite.PackByte(playerId);
@@ -615,6 +619,8 @@ namespace Crossplay
                     return "v1.4.3";
                 case "Terraria243":
                     return "v1.4.3.1";
+                case "Terraria244":
+                    return "v1.4.3.2";
             }
             return $"Unknown{version}";
         }

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 
+using OTAPI.Tile;
+
 using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
@@ -218,8 +220,8 @@ namespace Crossplay
                                 short tileX = reader.ReadInt16();
                                 short tileY = reader.ReadInt16();
 
-                                SendTileRectHandler handler = new SendTileRectHandler();
-                                GetDataHandlers.SendTileRectEventArgs STREventArgs = new GetDataHandlers.SendTileRectEventArgs()
+                                args.Handled = true;
+                                GetDataHandlers.SendTileRectEventArgs strEventArgs = new GetDataHandlers.SendTileRectEventArgs()
                                 {
                                     Player = TShock.Players[args.Msg.whoAmI],
                                     TileX = tileX,
@@ -229,22 +231,22 @@ namespace Crossplay
                                     Width = (byte)size,
                                     Length = (byte)size,
                                 };
-                                args.Handled = true;
-                                if (SendTileRectHandler.ShouldSkipProcessing(STREventArgs))
+                                GetDataHandlers.SendTileRect.Invoke(null, strEventArgs);
+                                if (strEventArgs.Handled)
                                 {
                                     return;
                                 }
-                                bool[,] processed = new bool[size, size];
-                                NetTile[,] tiles = new NetTile[size, size];
-                                MemoryStream stream2 = new MemoryStream(args.Msg.readBuffer, (int)(args.Index + reader.BaseStream.Position), args.Length); ;
-                                for (int x = 0; x < size; x++)
+
+                                for (int x = tileX; x < tileX + size; x++)
                                 {
-                                    for (int y = 0; y < size; y++)
+                                    for (int y = tileY; y < tileY + size; x++)
                                     {
-                                        tiles[x, y] = new NetTile(stream2);
+                                        ITile tile = Main.tile[x, y];
+                                        TileProcessor.ProcessTile(tile, reader);
                                     }
                                 }
-                                handler.IterateTileRect(tiles, processed, STREventArgs);
+                                WorldGen.RangeFrame(tileX, tileY, tileX + size, tileY + size);
+                                NetMessage.SendData(20, -1, index, null, tileX, tileY, size, size, changeType);
                             }
                         }
                         break;

@@ -31,7 +31,8 @@ namespace Crossplay
         public static CrossplayConfig Config = new CrossplayConfig();
 
         private readonly int[] ClientVersions = new int[Main.maxPlayers];
-        public static readonly Dictionary<int, int> MaxNPCID = new Dictionary<int, int>()
+
+        public static readonly Dictionary<int, int> MaxNPCs = new Dictionary<int, int>()
         {
             { 230, 662 },
             { 233, 664 },
@@ -43,7 +44,7 @@ namespace Crossplay
             { 242, 669 },
             { 243, 669 },
         };
-        public static readonly Dictionary<int, int> MaxTileType = new Dictionary<int, int>()
+        public static readonly Dictionary<int, int> MaxTiles = new Dictionary<int, int>()
         {
             { 230, 622 },
             { 233, 623 },
@@ -55,7 +56,7 @@ namespace Crossplay
             { 242, 624 },
             { 243, 624 },
         };
-        public static readonly Dictionary<int, int> MaxBuffType = new Dictionary<int, int>()
+        public static readonly Dictionary<int, int> MaxBuffs = new Dictionary<int, int>()
         {
             { 230, 322 },
             { 233, 329 },
@@ -67,7 +68,7 @@ namespace Crossplay
             { 242, 335 },
             { 243, 335 },
         };
-        public static readonly Dictionary<int, int> MaxProjectileType = new Dictionary<int, int>()
+        public static readonly Dictionary<int, int> MaxProjectiles = new Dictionary<int, int>()
         {
             { 230, 949 },
             { 233, 953 },
@@ -79,7 +80,7 @@ namespace Crossplay
             { 242, 970 },
             { 243, 970 },
         };
-        public static readonly Dictionary<int, int> MaxItemType = new Dictionary<int, int>()
+        public static readonly Dictionary<int, int> MaxItems = new Dictionary<int, int>()
         {
             { 230, 5044 },
             { 233, 5087 },
@@ -173,12 +174,12 @@ namespace Crossplay
                         .SetType(1)
                         .PackString($"Terraria{Main.curRelease}")
                         .GetByteData();
-                    Log($"Changing version of index {args.Msg.whoAmI} from {Convert(version)} => {Convert(Main.curRelease)}", color: ConsoleColor.Green);
+                    Log($"Changing version of index {args.Msg.whoAmI} from {ParseVersion(version)} => {ParseVersion(Main.curRelease)}", color: ConsoleColor.Green);
 
                     Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
                     return;
                 }
-                if (ClientVersions[index] == 0)
+                if (ClientVersions[index] == 0 && args.MsgID != PacketTypes.PlayerInfo)
                 {
                     return;
                 }
@@ -375,7 +376,7 @@ namespace Crossplay
                                         if (tileflags[0])
                                         {
                                             var tileType = reader.ReadUInt16();
-                                            var maxTileType = MaxTileType[playerVersion];
+                                            var maxTileType = MaxTiles[playerVersion];
                                             if (tileType > maxTileType)
                                             {
                                                 stream.Position -= 2;
@@ -407,7 +408,7 @@ namespace Crossplay
                         case PacketTypes.UpdateItemDrop:
                             {
                                 var itemIdentity = reader.ReadInt16();
-                                if (Main.item[itemIdentity].type > MaxItemType[playerVersion])
+                                if (Main.item[itemIdentity].type > MaxItems[playerVersion])
                                 {
                                     Log($"/ ItemDrop - Blocked itemType {Main.item[itemIdentity].type} from sending to player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
                                     args.Handled = true;
@@ -420,7 +421,7 @@ namespace Crossplay
                                 var identity = reader.ReadInt16();
                                 byte[] bytes = reader.ReadBytes(17);
                                 short projType = reader.ReadInt16();
-                                if (projType > MaxProjectileType[playerVersion])
+                                if (projType > MaxProjectiles[playerVersion])
                                 {
                                     var old = projType;
                                     switch (projType)
@@ -478,7 +479,7 @@ namespace Crossplay
                                     }
                                 }
                                 int type = reader.ReadInt16();
-                                var MaxNpcID = MaxNPCID[playerVersion];
+                                var MaxNpcID = MaxNPCs[playerVersion];
                                 if (type > MaxNpcID)
                                 {
                                     Log($"/ NpcUpdate - Preventing NPC packet from sending to index {socketId} because it exceeds npcType limit", true, ConsoleColor.Cyan);
@@ -495,7 +496,7 @@ namespace Crossplay
                                 for (int i = 0; i < 22; i++)
                                 {
                                     var buffType = reader.ReadUInt16();
-                                    if (buffType > MaxBuffType[playerVersion])
+                                    if (buffType > MaxBuffs[playerVersion])
                                     {
                                         Log($"/ PlayerBuff - Changed buffType {buffType} to 0 for player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
                                         buffType = 0;
@@ -511,7 +512,7 @@ namespace Crossplay
                             {
                                 var playerId = reader.ReadByte();
                                 var buff = reader.ReadUInt16();
-                                if (buff > MaxBuffType[playerVersion])
+                                if (buff > MaxBuffs[playerVersion])
                                 {
                                     Log($"/ PlayerAddBuff - Blocked buff add ({buff}) to player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
                                     args.Handled = true;
@@ -563,7 +564,7 @@ namespace Crossplay
                             {
                                 return;
                             }
-                            var MaxNpcID = MaxNPCID[playerVersion];
+                            var MaxNpcID = MaxNPCs[playerVersion];
                             if (npcID > MaxNpcID)
                             {
                                 Log($"/ NetModule (Bestiary) Blocked NpcType {npcID} for index: {index}", true, ConsoleColor.Yellow);
@@ -580,7 +581,7 @@ namespace Crossplay
                             {
                                 return;
                             }
-                            if (itemType > MaxItemType[playerVersion])
+                            if (itemType > MaxItems[playerVersion])
                             {
                                 Log($"/ NetModule (Creative Unlocks) Blocked ItemType {itemType} for index: {index}", true, ConsoleColor.Yellow);
                                 args.Handled = true;
@@ -596,7 +597,7 @@ namespace Crossplay
             ClientVersions[args.Who] = 0;
         }
 
-        private string Convert(int version)
+        private string ParseVersion(int version)
         {
             string protocol = $"Terraria{version}";
             switch (protocol)

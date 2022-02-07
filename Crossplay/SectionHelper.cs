@@ -12,7 +12,7 @@ namespace Crossplay
     {
         public static byte[] WriteDecompressedSection(MemoryStream decompressionStream, int version)
         {
-			int maxTileType = CrossplayPlugin.MaxTileType[version];
+			int maxTileType = CrossplayPlugin.MaxTiles[version];
 			using (BinaryReader reader = new BinaryReader(decompressionStream))
 			{
 				BinaryWriter writer = new BinaryWriter(decompressionStream);

@@ -24,7 +24,7 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.7.0");
+        public override Version Version => new Version("1.7.1");
 
         private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243 };
 
@@ -551,25 +551,24 @@ namespace Crossplay
             
             using (BinaryReader reader = new BinaryReader(new MemoryStream(moduleData)))
             {
-                reader.ReadInt16();
-                reader.ReadByte();
+                reader.BaseStream.Position += 3;
                 ushort netModuleID = reader.ReadUInt16();
                 switch (netModuleID)
                 {
                     case 4:
                         {
                             byte unlockType = reader.ReadByte();
-                            short npcID = reader.ReadInt16();
+                            short npcId = reader.ReadInt16();
                             int index = GetIndexFromSocket(args.socket);
                             var playerVersion = ClientVersions[index];
                             if (playerVersion == 0)
                             {
                                 return;
                             }
-                            var MaxNpcID = MaxNPCs[playerVersion];
-                            if (npcID > MaxNpcID)
+                            var maxNpcs = MaxNPCs[playerVersion];
+                            if (npcId > maxNpcs)
                             {
-                                Log($"/ NetModule (Bestiary) Blocked NpcType {npcID} for index: {index}", true, ConsoleColor.Yellow);
+                                Log($"/ NetModule (Bestiary) Blocked NpcType {maxNpcs} for index: {index}", true, ConsoleColor.Yellow);
                                 args.Handled = true;
                             }
                         }

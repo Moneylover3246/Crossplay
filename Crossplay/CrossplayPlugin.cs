@@ -24,9 +24,9 @@ namespace Crossplay
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
-        public override Version Version => new Version("1.7.1");
+        public override Version Version => new Version("1.8.0");
 
-        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243 };
+        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243, 244, 245 };
 
         public static string ConfigPath => Path.Combine("tshock", "Crossplay.json");
 
@@ -45,6 +45,8 @@ namespace Crossplay
             { 238, 667 },
             { 242, 669 },
             { 243, 669 },
+            { 244, 669 },
+            { 245, 669 },
         };
         public static readonly Dictionary<int, int> MaxTiles = new Dictionary<int, int>()
         {
@@ -57,6 +59,8 @@ namespace Crossplay
             { 238, 623 },
             { 242, 624 },
             { 243, 624 },
+            { 244, 624 },
+            { 245, 624 },
         };
         public static readonly Dictionary<int, int> MaxBuffs = new Dictionary<int, int>()
         {
@@ -69,6 +73,8 @@ namespace Crossplay
             { 238, 329 },
             { 242, 335 },
             { 243, 335 },
+            { 244, 335 },
+            { 245, 335 },
         };
         public static readonly Dictionary<int, int> MaxProjectiles = new Dictionary<int, int>()
         {
@@ -81,6 +87,8 @@ namespace Crossplay
             { 238, 955 },
             { 242, 970 },
             { 243, 970 },
+            { 244, 970 },
+            { 245, 970 },
         };
         public static readonly Dictionary<int, int> MaxItems = new Dictionary<int, int>()
         {
@@ -93,6 +101,8 @@ namespace Crossplay
             { 238, 5087 },
             { 242, 5124 },
             { 243, 5124 },
+            { 244, 5124 },
+            { 245, 5124 },
         };
 
         public CrossplayPlugin(Main game) : base(game)
@@ -623,6 +633,10 @@ namespace Crossplay
                     return "v1.4.3.1";
                 case "Terraria244":
                     return "v1.4.3.2";
+                case "Terraria245":
+                    return "v1.4.3.3";
+                case "Terraria246":
+                    return "v1.4.3.4";
             }
             return $"Unknown{version}";
         }

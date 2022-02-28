@@ -1,25 +1,23 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Text;
-using OTAPI.Tile;
+
 using Terraria;
 
 namespace Crossplay
 {
     public class SectionHelper
     {
-        public static byte[] WriteDecompressedSection(MemoryStream decompressionStream, int version)
+        public static byte[] CompressTileSection(MemoryStream decompressionStream, int version)
         {
 			int maxTileType = CrossplayPlugin.MaxTiles[version];
 			using (BinaryReader reader = new BinaryReader(decompressionStream))
 			{
 				BinaryWriter writer = new BinaryWriter(decompressionStream);
-				var xStart = reader.ReadInt32();
-				var yStart = reader.ReadInt32();
-				var width = reader.ReadInt16();
-				var height = reader.ReadInt16();
+				int xStart = reader.ReadInt32();
+				int yStart = reader.ReadInt32();
+				short width = reader.ReadInt16();
+				short height = reader.ReadInt16();
 				int tileCopies = 0;
 				for (int y = yStart; y < yStart + height; y++)
 				{
@@ -46,8 +44,8 @@ namespace Crossplay
 							{
 								if ((header & 32) == 32)
 								{
-									var typeShort = reader.ReadByte();
-									var typeLong = reader.ReadByte();
+									byte typeShort = reader.ReadByte();
+									byte typeLong = reader.ReadByte();
 									newType = (typeLong << 8) | typeShort;
 									if (newType > maxTileType)
 									{
@@ -70,35 +68,34 @@ namespace Crossplay
 								}
 								if (Main.tileFrameImportant[newType])
 								{
-									reader.ReadInt16(); // FrameX
-									reader.ReadInt16(); // FrameY
+									reader.BaseStream.Position += 4; // FrameX + FrameY
 								}
 								if ((header3 & 8) == 8)
 								{
-									reader.ReadByte(); // Tile color
+									reader.BaseStream.Position++; // Tile color (byte)
 								}
 							}
 							if ((header & 4) == 4)
 							{
-								reader.ReadByte(); // Wall Type
+								reader.BaseStream.Position++; // Wall type (byte)
 								if ((header3 & 16) == 16)
 								{
-									reader.ReadByte(); // Wall color
+									reader.BaseStream.Position++; // Wall color (byte)
 								}
 							}
-							var liquidHeader = (byte)((header & 24) >> 3);
+							byte liquidHeader = (byte)((header & 24) >> 3);
 							if (liquidHeader != 0)
 							{
-								reader.ReadByte(); // Liquid amount
+								reader.BaseStream.Position++; // Liquid amount (byte)
 							}
 							if (header3 > 0)
 							{
 								if ((header3 & 64) == 64)
 								{
-									reader.ReadByte(); // Long wall
+									reader.BaseStream.Position++; // Long wall
 								}
 							}
-							var tileCopyHeader = (byte)((header & 192) >> 6);
+							byte tileCopyHeader = (byte)((header & 192) >> 6);
 							switch (tileCopyHeader)
 							{
 								case 0:

@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
+using System.Text;
 
 using OTAPI.Tile;
 
@@ -13,20 +15,18 @@ using TerrariaApi.Server;
 
 using TShockAPI;
 using TShockAPI.Hooks;
-using TShockAPI.Net;
 
 namespace Crossplay
 {
     [ApiVersion(2, 1)]
     public class CrossplayPlugin : TerrariaPlugin
     {
-        public static int Header = 3;
         public override string Name => "Crossplay";
         public override string Author => "Moneylover3246";
         public override string Description => "Enables crossplay for terraria";
         public override Version Version => new Version("1.8.0");
 
-        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243, 244, 245 };
+        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243, 244, 245, 246 };
 
         public static string ConfigPath => Path.Combine("tshock", "Crossplay.json");
 
@@ -47,6 +47,7 @@ namespace Crossplay
             { 243, 669 },
             { 244, 669 },
             { 245, 669 },
+            { 246, 669 },
         };
         public static readonly Dictionary<int, int> MaxTiles = new Dictionary<int, int>()
         {
@@ -61,6 +62,7 @@ namespace Crossplay
             { 243, 624 },
             { 244, 624 },
             { 245, 624 },
+            { 246, 624 },
         };
         public static readonly Dictionary<int, int> MaxBuffs = new Dictionary<int, int>()
         {
@@ -75,6 +77,7 @@ namespace Crossplay
             { 243, 335 },
             { 244, 335 },
             { 245, 335 },
+            { 246, 335 },
         };
         public static readonly Dictionary<int, int> MaxProjectiles = new Dictionary<int, int>()
         {
@@ -89,6 +92,7 @@ namespace Crossplay
             { 243, 970 },
             { 244, 970 },
             { 245, 970 },
+            { 246, 970 },
         };
         public static readonly Dictionary<int, int> MaxItems = new Dictionary<int, int>()
         {
@@ -103,17 +107,20 @@ namespace Crossplay
             { 243, 5124 },
             { 244, 5124 },
             { 245, 5124 },
+            { 246, 5124 },
         };
 
         public CrossplayPlugin(Main game) : base(game)
         {
             Order = -1;
         }
+
         public override void Initialize()
         {
             ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
-            ServerApi.Hooks.NetGetData.Register(this, GetData, int.MaxValue);
-            ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, -int.MaxValue);
+            ServerApi.Hooks.GamePostInitialize.Register(this, OnPostInitialize);
+            ServerApi.Hooks.NetGetData.Register(this, OnGetData, int.MaxValue);
+            ServerApi.Hooks.NetSendBytes.Register(this, SendBytes, int.MinValue);
             ServerApi.Hooks.NetSendNetData.Register(this, HandleNetModules);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
             GeneralHooks.ReloadEvent += OnReload;
@@ -141,7 +148,8 @@ namespace Crossplay
             if (disposing)
             {
                 ServerApi.Hooks.GameInitialize.Deregister(this, OnInitialize);
-                ServerApi.Hooks.NetGetData.Deregister(this, GetData);
+                ServerApi.Hooks.GamePostInitialize.Deregister(this, OnPostInitialize);
+                ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
                 ServerApi.Hooks.NetSendBytes.Deregister(this, SendBytes);
                 ServerApi.Hooks.NetSendNetData.Deregister(this, HandleNetModules);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
@@ -163,7 +171,25 @@ namespace Crossplay
             }
         }
 
-        private void GetData(GetDataEventArgs args)
+        private void OnPostInitialize(EventArgs e)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("Crossplay has been enabled & has whitelisted the following versions:\n");
+            sb.Append(string.Join(", ", AllowedVersions.Select(v => ParseVersion(v))));
+            sb.Append("\nIf there are any issues please report them here: https://github.com/Moneylover3246/Crossplay");
+
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("-------------------------------------");
+
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine(sb.ToString());
+
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("-------------------------------------");
+            Console.ResetColor();
+        }
+
+        private void OnGetData(GetDataEventArgs args)
         {
             MemoryStream stream = new MemoryStream(args.Msg.readBuffer, args.Index, args.Length);
             int index = args.Msg.whoAmI;
@@ -172,21 +198,21 @@ namespace Crossplay
                 if ((int)args.MsgID == 1)
                 {
                     string versionstring = reader.ReadString();
-                    if (!int.TryParse(versionstring.Substring(versionstring.Length - 3), out int version))
+                    if (!int.TryParse(versionstring.Substring(versionstring.Length - 3), out int versionNum))
                     {
                         return;
                     }
-                    if (!AllowedVersions.Contains(version))
+                    if (!AllowedVersions.Contains(versionNum))
                     {
                         return;
                     }
-                    ClientVersions[index] = version;
+                    ClientVersions[index] = versionNum;
                     NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
                     byte[] connectRequest = new PacketFactory()
                         .SetType(1)
                         .PackString($"Terraria{Main.curRelease}")
                         .GetByteData();
-                    Log($"Changing version of index {args.Msg.whoAmI} from {ParseVersion(version)} => {ParseVersion(Main.curRelease)}", color: ConsoleColor.Green);
+                    Log($"Changing version of index {args.Msg.whoAmI} from {ParseVersion(versionNum)} => {Main.versionNumber}", color: ConsoleColor.Green);
 
                     Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
                     return;
@@ -195,69 +221,72 @@ namespace Crossplay
                 {
                     return;
                 }
-                var playerVersion = ClientVersions[index];
+                int version = ClientVersions[index];
                 switch (args.MsgID)
                 {
                     case PacketTypes.PlayerInfo:
-                        if (Config.Settings.EnableJourneySupport)
                         {
-                            byte value = args.Msg.readBuffer[args.Length];
-                            if (Main.GameMode == 3)
+                            if (Config.Settings.EnableJourneySupport)
                             {
-                                args.Msg.readBuffer[args.Length] |= 8;
-                            }
-                            else
-                            {
-                                args.Msg.readBuffer[args.Length] &= 247;
-                            }
-                            if (args.Msg.readBuffer[args.Length] != value)
-                            {
-                                Log($"[Crossplay] {(Main.GameMode == 3 ? "Enabled" : "Disabled")} journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
+                                byte value = args.Msg.readBuffer[args.Length];
+                                if (Main.GameMode == 3)
+                                {
+                                    args.Msg.readBuffer[args.Length] |= 8;
+                                }
+                                else
+                                {
+                                    args.Msg.readBuffer[args.Length] &= 247;
+                                }
+                                if (args.Msg.readBuffer[args.Length] != value)
+                                {
+                                    Log($"[Crossplay] {(Main.GameMode == 3 ? "Enabled" : "Disabled")} journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
+                                }
                             }
                         }
                         break;
                     case PacketTypes.TileSendSquare:
                         {
-                            if (playerVersion < 234)
+                            if (version > 233)
                             {
-                                ushort header = reader.ReadUInt16();
-                                var size = header & 32767;
-                                byte changeType = 0;
-                                if ((header & 0x8000) > 0)
-                                {
-                                    changeType = reader.ReadByte();
-                                }
-                                short tileX = reader.ReadInt16();
-                                short tileY = reader.ReadInt16();
-
-                                args.Handled = true;
-                                GetDataHandlers.SendTileRectEventArgs strEventArgs = new GetDataHandlers.SendTileRectEventArgs()
-                                {
-                                    Player = TShock.Players[args.Msg.whoAmI],
-                                    TileX = tileX,
-                                    TileY = tileY,
-                                    ChangeType = (TileChangeType)changeType,
-                                    Data = stream,
-                                    Width = (byte)size,
-                                    Length = (byte)size,
-                                };
-                                GetDataHandlers.SendTileRect.Invoke(null, strEventArgs);
-                                if (strEventArgs.Handled)
-                                {
-                                    return;
-                                }
-
-                                for (int x = tileX; x < tileX + size; x++)
-                                {
-                                    for (int y = tileY; y < tileY + size; x++)
-                                    {
-                                        ITile tile = Main.tile[x, y];
-                                        TileProcessor.ProcessTile(tile, reader);
-                                    }
-                                }
-                                WorldGen.RangeFrame(tileX, tileY, tileX + size, tileY + size);
-                                NetMessage.SendData(20, -1, index, null, tileX, tileY, size, size, changeType);
+                                return;
                             }
+                            ushort header = reader.ReadUInt16();
+                            int size = header & 32767;
+                            byte changeType = 0;
+                            if ((header & 0x8000) > 0)
+                            {
+                                changeType = reader.ReadByte();
+                            }
+                            short tileX = reader.ReadInt16();
+                            short tileY = reader.ReadInt16();
+
+                            args.Handled = true;
+                            GetDataHandlers.SendTileRectEventArgs strEventArgs = new GetDataHandlers.SendTileRectEventArgs()
+                            {
+                                Player = TShock.Players[args.Msg.whoAmI],
+                                TileX = tileX,
+                                TileY = tileY,
+                                ChangeType = (TileChangeType)changeType,
+                                Data = stream,
+                                Width = (byte)size,
+                                Length = (byte)size,
+                            };
+                            GetDataHandlers.SendTileRect.Invoke(null, strEventArgs);
+                            if (strEventArgs.Handled)
+                            {
+                                return;
+                            }
+
+                            for (int x = tileX; x < tileX + size; x++)
+                            {
+                                for (int y = tileY; y < tileY + size; x++)
+                                {
+                                    ITile tile = Main.tile[x, y];
+                                    TileProcessor.ProcessTile(tile, reader);
+                                }
+                            }
+                            WorldGen.RangeFrame(tileX, tileY, tileX + size, tileY + size);
+                            NetMessage.SendData(20, -1, index, null, tileX, tileY, size, size, changeType);
                         }
                         break;
                 }
@@ -273,7 +302,7 @@ namespace Crossplay
                 return;
             }
             int playerVersion = ClientVersions[socketId];
-            var stream = new MemoryStream(args.Buffer, 0, args.Buffer.Length);
+            MemoryStream stream = new MemoryStream(args.Buffer, 0, args.Buffer.Length);
             BinaryWriter writer = new BinaryWriter(stream);
             using (BinaryReader reader = new BinaryReader(stream))
             {
@@ -321,7 +350,7 @@ namespace Crossplay
                                     }
                                     streamRead.Position = 0L;
                                 }
-                                byte[] tileSection = SectionHelper.WriteDecompressedSection(streamRead, playerVersion);
+                                byte[] tileSection = SectionHelper.CompressTileSection(streamRead, playerVersion);
                                 client.Socket.AsyncSend(tileSection, 0, tileSection.Length, client.ServerWriteCallBack);
                                 args.Handled = true;
                             }
@@ -345,8 +374,8 @@ namespace Crossplay
                                 {
                                     header |= 32768;
                                 }
-                                var size = header & 32767;
-                                var tileWrite = new PacketFactory();
+                                int size = header & 32767;
+                                PacketFactory tileWrite = new PacketFactory();
                                 tileWrite.SetType(20);
                                 if (playerVersion < 234)
                                 {
@@ -367,7 +396,7 @@ namespace Crossplay
                                         .PackByte(changeType);
                                 }
                                 args.Handled = true;
-                                var position = reader.BaseStream.Position;
+                                long position = reader.BaseStream.Position;
 
                                 BitsByte tileflags = 0;
                                 BitsByte tileflags2 = 0;
@@ -387,9 +416,9 @@ namespace Crossplay
                                         }
                                         if (tileflags[0])
                                         {
-                                            var tileType = reader.ReadUInt16();
-                                            var maxTileType = MaxTiles[playerVersion];
-                                            if (tileType > maxTileType)
+                                            ushort tileType = reader.ReadUInt16();
+                                            int maxTile = MaxTiles[playerVersion];
+                                            if (tileType > maxTile)
                                             {
                                                 stream.Position -= 2;
                                                 writer.Write((ushort)(Main.tileFrameImportant[tileType] ? 72 : 1));
@@ -419,7 +448,7 @@ namespace Crossplay
                         case PacketTypes.ItemDrop:
                         case PacketTypes.UpdateItemDrop:
                             {
-                                var itemIdentity = reader.ReadInt16();
+                                short itemIdentity = reader.ReadInt16();
                                 if (Main.item[itemIdentity].type > MaxItems[playerVersion])
                                 {
                                     Log($"/ ItemDrop - Blocked itemType {Main.item[itemIdentity].type} from sending to player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
@@ -430,12 +459,12 @@ namespace Crossplay
                             break;
                         case PacketTypes.ProjectileNew:
                             {
-                                var identity = reader.ReadInt16();
+                                short identity = reader.ReadInt16();
                                 byte[] bytes = reader.ReadBytes(17);
                                 short projType = reader.ReadInt16();
                                 if (projType > MaxProjectiles[playerVersion])
                                 {
-                                    var old = projType;
+                                    short old = projType;
                                     switch (projType)
                                     {
                                         case 953:
@@ -491,8 +520,8 @@ namespace Crossplay
                                     }
                                 }
                                 int type = reader.ReadInt16();
-                                var MaxNpcID = MaxNPCs[playerVersion];
-                                if (type > MaxNpcID)
+                                int maxNpcId = MaxNPCs[playerVersion];
+                                if (type > maxNpcId)
                                 {
                                     Log($"/ NpcUpdate - Preventing NPC packet from sending to index {socketId} because it exceeds npcType limit", true, ConsoleColor.Cyan);
                                     args.Handled = true;
@@ -501,13 +530,13 @@ namespace Crossplay
                             break;
                         case PacketTypes.PlayerBuff:
                             {
-                                var playerId = reader.ReadByte();
-                                var buffWrite = new PacketFactory();
-                                buffWrite.SetType(50);
-                                buffWrite.PackByte(playerId);
+                                byte plr = reader.ReadByte();
+                                var buffWrite = new PacketFactory()
+                                    .SetType(50)
+                                    .PackByte(plr);
                                 for (int i = 0; i < 22; i++)
                                 {
-                                    var buffType = reader.ReadUInt16();
+                                    ushort buffType = reader.ReadUInt16();
                                     if (buffType > MaxBuffs[playerVersion])
                                     {
                                         Log($"/ PlayerBuff - Changed buffType {buffType} to 0 for player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
@@ -515,15 +544,15 @@ namespace Crossplay
                                     }
                                     buffWrite.PackUInt16(buffType);
                                 }
-                                var playerBuff = buffWrite.GetByteData();
-                                client.Socket.AsyncSend(playerBuff, 0, playerBuff.Length, client.ServerWriteCallBack);
+                                byte[] data = buffWrite.GetByteData();
+                                client.Socket.AsyncSend(data, 0, data.Length, client.ServerWriteCallBack);
                                 args.Handled = true;
                             }
                             break;
                         case PacketTypes.PlayerAddBuff:
                             {
-                                var playerId = reader.ReadByte();
-                                var buff = reader.ReadUInt16();
+                                byte playerId = reader.ReadByte();
+                                ushort buff = reader.ReadUInt16();
                                 if (buff > MaxBuffs[playerVersion])
                                 {
                                     Log($"/ PlayerAddBuff - Blocked buff add ({buff}) to player {TShock.Players[socketId].Name}", true, ConsoleColor.DarkGreen);
@@ -534,7 +563,7 @@ namespace Crossplay
                             break;
                     }
                 }
-                catch (IOException ex)
+                catch (IOException)
                 {
                 }
                 catch (Exception ex)
@@ -570,12 +599,12 @@ namespace Crossplay
                             byte unlockType = reader.ReadByte();
                             short npcId = reader.ReadInt16();
                             int index = GetIndexFromSocket(args.socket);
-                            var playerVersion = ClientVersions[index];
+                            int playerVersion = ClientVersions[index];
                             if (playerVersion == 0)
                             {
                                 return;
                             }
-                            var maxNpcs = MaxNPCs[playerVersion];
+                            int maxNpcs = MaxNPCs[playerVersion];
                             if (npcId > maxNpcs)
                             {
                                 Log($"/ NetModule (Bestiary) Blocked NpcType {maxNpcs} for index: {index}", true, ConsoleColor.Yellow);
@@ -585,9 +614,9 @@ namespace Crossplay
                         break;
                     case 5:
                         {
-                            var itemType = reader.ReadInt16();
+                            short itemType = reader.ReadInt16();
                             int index = GetIndexFromSocket(args.socket);
-                            var playerVersion = ClientVersions[index];
+                            int playerVersion = ClientVersions[index];
                             if (playerVersion == 0)
                             {
                                 return;
@@ -610,33 +639,34 @@ namespace Crossplay
 
         private string ParseVersion(int version)
         {
-            string protocol = $"Terraria{version}";
-            switch (protocol)
+            switch (version)
             {
-                case "Terraria230":
+                case 230:
                     return "v1.4.0.5";
-                case "Terraria233":
+                case 233:
                     return "v1.4.1.1";
-                case "Terraria234":
+                case 234:
                     return "v1.4.1.2";
-                case "Terraria235":
+                case 235:
                     return "v1.4.2";
-                case "Terraria236":
+                case 236:
                     return "v1.4.2.1";
-                case "Terraria237":
+                case 237:
                     return "v1.4.2.2";
-                case "Terraria238":
+                case 238:
                     return "v1.4.2.3";
-                case "Terraria242":
+                case 242:
                     return "v1.4.3";
-                case "Terraria243":
+                case 243:
                     return "v1.4.3.1";
-                case "Terraria244":
+                case 244:
                     return "v1.4.3.2";
-                case "Terraria245":
+                case 245:
                     return "v1.4.3.3";
-                case "Terraria246":
+                case 246:
                     return "v1.4.3.4";
+                case 247:
+                    return "v1.4.3.5";
             }
             return $"Unknown{version}";
         }

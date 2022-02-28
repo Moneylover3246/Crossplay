@@ -28,7 +28,7 @@ namespace Crossplay
 
         private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243, 244, 245, 246 };
 
-        public static string ConfigPath => Path.Combine("tshock", "Crossplay.json");
+        public static string ConfigPath => Path.Combine(TShock.SavePath, "Crossplay.json");
 
         public static CrossplayConfig Config = new CrossplayConfig();
 

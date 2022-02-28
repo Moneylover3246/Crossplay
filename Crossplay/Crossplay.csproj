@@ -3,7 +3,12 @@
   <PropertyGroup>
     <TargetFramework>net45</TargetFramework>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Version>1.8.0</Version>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="Newtonsoft.Json">

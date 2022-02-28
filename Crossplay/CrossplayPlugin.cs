@@ -176,7 +176,7 @@ namespace Crossplay
             StringBuilder sb = new StringBuilder();
             sb.Append("Crossplay has been enabled & has whitelisted the following versions:\n");
             sb.Append(string.Join(", ", AllowedVersions.Select(v => ParseVersion(v))));
-            sb.Append("\nIf there are any issues please report them here: https://github.com/Moneylover3246/Crossplay");
+            sb.Append("\n\nIf there are any issues please report them here: https://github.com/Moneylover3246/Crossplay");
 
             Console.ForegroundColor = ConsoleColor.Magenta;
             Console.WriteLine("-------------------------------------");
@@ -197,8 +197,8 @@ namespace Crossplay
             {
                 if ((int)args.MsgID == 1)
                 {
-                    string versionstring = reader.ReadString();
-                    if (!int.TryParse(versionstring.Substring(versionstring.Length - 3), out int versionNum))
+                    string clientVersion = reader.ReadString();
+                    if (!int.TryParse(clientVersion.Substring(clientVersion.Length - 3), out int versionNum))
                     {
                         return;
                     }

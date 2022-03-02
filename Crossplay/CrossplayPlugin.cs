@@ -26,13 +26,15 @@ namespace Crossplay
         public override string Description => "Enables crossplay for terraria";
         public override Version Version => new Version("1.9.0");
 
-        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243, 244, 245, 246 };
+        public static CrossplayConfig Config = new CrossplayConfig();
 
         public static string ConfigPath => Path.Combine(TShock.SavePath, "Crossplay.json");
 
-        public static CrossplayConfig Config = new CrossplayConfig();
+        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243, 244, 245, 246, 247 };
 
         private readonly int[] ClientVersions = new int[Main.maxPlayers];
+
+        private static int ServerVersion;
 
         public static readonly Dictionary<int, int> MaxNPCs = new Dictionary<int, int>()
         {
@@ -48,6 +50,7 @@ namespace Crossplay
             { 244, 669 },
             { 245, 669 },
             { 246, 669 },
+            { 247, 669 },
         };
         public static readonly Dictionary<int, int> MaxTiles = new Dictionary<int, int>()
         {
@@ -63,6 +66,7 @@ namespace Crossplay
             { 244, 624 },
             { 245, 624 },
             { 246, 624 },
+            { 247, 624 },
         };
         public static readonly Dictionary<int, int> MaxBuffs = new Dictionary<int, int>()
         {
@@ -78,6 +82,7 @@ namespace Crossplay
             { 244, 335 },
             { 245, 335 },
             { 246, 335 },
+            { 247, 335 },
         };
         public static readonly Dictionary<int, int> MaxProjectiles = new Dictionary<int, int>()
         {
@@ -93,6 +98,7 @@ namespace Crossplay
             { 244, 970 },
             { 245, 970 },
             { 246, 970 },
+            { 247, 970 },
         };
         public static readonly Dictionary<int, int> MaxItems = new Dictionary<int, int>()
         {
@@ -108,6 +114,7 @@ namespace Crossplay
             { 244, 5124 },
             { 245, 5124 },
             { 246, 5124 },
+            { 247, 5124 },
         };
 
         public CrossplayPlugin(Main game) : base(game)
@@ -169,10 +176,22 @@ namespace Crossplay
             {
                 Config.Write(ConfigPath);
             }
+            if (Config.Settings.FakeVersionEnabled)
+            {
+                ServerVersion = Config.Settings.FakeVersion;
+                Log($"Fake Version set to {ServerVersion}", false, ConsoleColor.Yellow);
+            }
         }
 
         private void OnPostInitialize(EventArgs e)
         {
+            ServerVersion = Main.curRelease;
+            if (Config.Settings.FakeVersionEnabled)
+            {
+                ServerVersion = Config.Settings.FakeVersion;
+                Log($"Fake Version set to {ServerVersion}", false, ConsoleColor.Yellow);
+            }
+
             StringBuilder sb = new StringBuilder();
             sb.Append("Crossplay has been enabled & has whitelisted the following versions:\n");
             sb.Append(string.Join(", ", AllowedVersions.Select(v => ParseVersion(v))));
@@ -210,9 +229,9 @@ namespace Crossplay
                     NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
                     byte[] connectRequest = new PacketFactory()
                         .SetType(1)
-                        .PackString($"Terraria{Main.curRelease}")
+                        .PackString($"Terraria{ServerVersion}")
                         .GetByteData();
-                    Log($"Changing version of index {args.Msg.whoAmI} from {ParseVersion(versionNum)} => {Main.versionNumber}", color: ConsoleColor.Green);
+                    Log($"Changing version of index {args.Msg.whoAmI} from {ParseVersion(versionNum)} => {ParseVersion(ServerVersion)}", color: ConsoleColor.Green);
 
                     Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
                     return;

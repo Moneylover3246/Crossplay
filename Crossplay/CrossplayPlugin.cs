@@ -221,7 +221,11 @@ namespace Crossplay
                     {
                         return;
                     }
-                    if (!AllowedVersions.Contains(versionNum))
+                    if (versionNum == ServerVersion)
+                    {
+                        return;
+                    }
+                    if (!AllowedVersions.Contains(versionNum) && !Config.Settings.FakeVersionEnabled)
                     {
                         return;
                     }

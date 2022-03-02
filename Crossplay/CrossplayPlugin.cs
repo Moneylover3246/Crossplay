@@ -690,6 +690,8 @@ namespace Crossplay
                     return "v1.4.3.4";
                 case 247:
                     return "v1.4.3.5";
+                case 248:
+                    return "v1.4.3.6";
             }
             return $"Unknown{version}";
         }

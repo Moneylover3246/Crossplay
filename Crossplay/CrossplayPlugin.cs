@@ -378,7 +378,7 @@ namespace Crossplay
                                     using (DeflateStream deflateStream = new DeflateStream(streamRead, CompressionMode.Decompress, true))
                                     {
                                         streamRead = new MemoryStream();
-                                        deflateStream.CopyTo(streamRead);
+                                        deflateStream.CopyTo(streamRead); // ERRORS OUT
                                         deflateStream.Close();
                                     }
                                     streamRead.Position = 0L;

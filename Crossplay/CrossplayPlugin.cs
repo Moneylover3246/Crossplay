@@ -30,7 +30,7 @@ namespace Crossplay
 
         public static string ConfigPath => Path.Combine(TShock.SavePath, "Crossplay.json");
 
-        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243, 244, 245, 246, 247 };
+        private readonly List<int> AllowedVersions = new List<int>() { 230, 233, 234, 235, 236, 237, 238, 242, 243, 244, 245, 246, 247, 269, 270 };
 
         private readonly int[] ClientVersions = new int[Main.maxPlayers];
 
@@ -51,6 +51,8 @@ namespace Crossplay
             { 245, 669 },
             { 246, 669 },
             { 247, 669 },
+            { 269, 688 },
+            { 270, 688 }
         };
         public static readonly Dictionary<int, int> MaxTiles = new Dictionary<int, int>()
         {
@@ -67,6 +69,8 @@ namespace Crossplay
             { 245, 624 },
             { 246, 624 },
             { 247, 624 },
+            { 269, 693 },
+            { 270, 693 }
         };
         public static readonly Dictionary<int, int> MaxBuffs = new Dictionary<int, int>()
         {
@@ -83,6 +87,8 @@ namespace Crossplay
             { 245, 335 },
             { 246, 335 },
             { 247, 335 },
+            { 269, 355 },
+            { 270, 355 }
         };
         public static readonly Dictionary<int, int> MaxProjectiles = new Dictionary<int, int>()
         {
@@ -99,6 +105,8 @@ namespace Crossplay
             { 245, 970 },
             { 246, 970 },
             { 247, 970 },
+            { 269, 1022 },
+            { 270, 1022 }
         };
         public static readonly Dictionary<int, int> MaxItems = new Dictionary<int, int>()
         {
@@ -115,6 +123,8 @@ namespace Crossplay
             { 245, 5124 },
             { 246, 5124 },
             { 247, 5124 },
+            { 269, 5453 },
+            { 270, 5453 }
         };
 
         public CrossplayPlugin(Main game) : base(game)
@@ -692,6 +702,10 @@ namespace Crossplay
                     return "v1.4.3.5";
                 case 248:
                     return "v1.4.3.6";
+                case 269:
+                    return "v1.4.4";
+                case 270:
+                    return "v1.4.4.1";
             }
             return $"Unknown{version}";
         }

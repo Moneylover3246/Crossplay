@@ -1,18 +1,15 @@
-﻿using System.IO;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using TShockAPI.Configuration;
 
 namespace Crossplay
 {
     public class CrossplaySettings
     {
-        public bool EnableJourneySupport = false;
+        [JsonProperty("support_journey_clients")]
+        public bool SupportJourneyClients = false;
 
-        public bool EnablePacketDebugging = false;
-
-        public bool FakeVersionEnabled = false;
-
-        public int FakeVersion = 248;
+        [JsonProperty("debug_mode")]
+        public bool DebugMode = false;
     }
 
     public class CrossplayConfig : ConfigFile<CrossplaySettings>

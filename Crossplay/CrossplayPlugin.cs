@@ -195,8 +195,13 @@ namespace Crossplay
                             {
                                 Log($"Enabled journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
                                 gameModeFlags |= 8;
+                                return;
                             }
-                            else if ((gameModeFlags & 8) == 8)
+                            if (TShock.Config.Settings.SoftcoreOnly && (gameModeFlags & 3) != 0)
+                            {
+                                return;
+                            }
+                            if ((gameModeFlags & 8) == 8)
                             {
                                 Log($"Disabled journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
                                 gameModeFlags &= 247;

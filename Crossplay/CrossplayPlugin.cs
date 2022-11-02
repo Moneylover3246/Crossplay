@@ -26,6 +26,7 @@ namespace Crossplay
             { 273, "v1.4.4.4" },
             { 274, "v1.4.4.5" },
             { 275, "v1.4.4.6" },
+            { 276, "v1.4.4.7" },
         };
 
         public override string Name => "Crossplay";
@@ -53,6 +54,7 @@ namespace Crossplay
             { 273, 5453 },
             { 274, 5456 },
             { 275, 5456 },
+            { 276, 5456 },
         };
 
         public CrossplayPlugin(Main game) : base(game)
@@ -175,9 +177,9 @@ namespace Crossplay
                             NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
                             byte[] connectRequest = new PacketFactory()
                                 .SetType(1)
-                                .PackString($"Terraria275")
+                                .PackString($"Terraria276")
                                 .GetByteData();
-                            Log($"Changing version of index {args.Msg.whoAmI} from {_supportedVersions[versionNumber]} => {_supportedVersions[275]}", color: ConsoleColor.Green);
+                            Log($"Changing version of index {args.Msg.whoAmI} from {_supportedVersions[versionNumber]} => {_supportedVersions[276]}", color: ConsoleColor.Green);
 
                             Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
                         }
@@ -188,15 +190,15 @@ namespace Crossplay
                             {
                                 return;
                             }
-                            ref byte gameModeFlags = ref args.Msg.readBuffer[args.Length];
-                            if (Main.GameMode == GameModeID.Creative && (gameModeFlags & 8) != 8)
+                            ref byte gameModeFlags = ref args.Msg.readBuffer[args.Length - 1];
+                            if (Main.GameModeInfo.IsJourneyMode && (gameModeFlags & 8) != 8)
                             {
-                                Log($"[Crossplay] Enabled journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
+                                Log($"Enabled journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
                                 gameModeFlags |= 8;
                             }
                             else if ((gameModeFlags & 8) == 8)
                             {
-                                Log($"[Crossplay] Disabled journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
+                                Log($"Disabled journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
                                 gameModeFlags &= 247;
                             }
                         }

@@ -65,6 +65,11 @@ namespace Crossplay
 
         public override void Initialize()
         {
+            if (!_supportedVersions.TryGetValue(Main.curRelease, out string version) || version != Main.versionNumber)
+            {
+                throw new NotSupportedException("The provided version of this plugin is outdated and will not function properly. Check for any updates here: https://github.com/Moneylover3246/Crossplay");
+            }
+
             On.Terraria.Net.NetManager.Broadcast_NetPacket_int += NetModuleHandler.OnBroadcast;
             On.Terraria.Net.NetManager.SendToClient += NetModuleHandler.OnSendToClient;
 

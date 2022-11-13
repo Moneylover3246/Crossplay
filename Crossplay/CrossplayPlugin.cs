@@ -200,10 +200,17 @@ namespace Crossplay
                                 return;
                             }
                             ref byte gameModeFlags = ref args.Msg.readBuffer[args.Length - 1];
-                            if (Main.GameModeInfo.IsJourneyMode && (gameModeFlags & 8) != 8)
+                            if (Main.GameModeInfo.IsJourneyMode)
                             {
-                                Log($"Enabled journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
-                                gameModeFlags |= 8;
+                                if ((gameModeFlags & 8) != 8)
+                                {
+                                    Log($"Enabled journey mode for index {args.Msg.whoAmI}", color: ConsoleColor.Green);
+                                    gameModeFlags |= 8;
+                                    if (Main.ServerSideCharacter)
+                                    {
+                                        NetMessage.SendData(4, args.Msg.whoAmI, -1, null, args.Msg.whoAmI);
+                                    }
+                                }
                                 return;
                             }
                             if (TShock.Config.Settings.SoftcoreOnly && (gameModeFlags & 3) != 0)

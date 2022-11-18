@@ -29,6 +29,7 @@ namespace Crossplay
             { 276, "v1.4.4.7" },
             { 277, "v1.4.4.8" },
             { 278, "v1.4.4.8.1" },
+            { 279, "v1.4.4.9" },
         };
 
         public override string Name => "Crossplay";
@@ -37,7 +38,7 @@ namespace Crossplay
 
         public override string Description => "Enables crossplay for terraria";
 
-        public override Version Version => new("2.1.1");
+        public override Version Version => new("2.1.2");
 
         public CrossplayConfig Config { get; } = new();
 
@@ -59,6 +60,7 @@ namespace Crossplay
             { 276, 5456 },
             { 277, 5456 },
             { 278, 5456 },
+            { 279, 5456 },
         };
 
         public CrossplayPlugin(Main game) : base(game)

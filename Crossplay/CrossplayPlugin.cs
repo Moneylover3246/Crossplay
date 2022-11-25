@@ -29,6 +29,7 @@ namespace Crossplay
             { 276, "v1.4.4.7" },
             { 277, "v1.4.4.8" },
             { 278, "v1.4.4.8.1" },
+            { 279, "v1.4.4.9" },
         };
 
         public override string Name => "Crossplay";
@@ -59,6 +60,7 @@ namespace Crossplay
             { 276, 5456 },
             { 277, 5456 },
             { 278, 5456 },
+            { 279, 5456 },
         };
 
         public CrossplayPlugin(Main game) : base(game)
@@ -186,9 +188,9 @@ namespace Crossplay
                             NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
                             byte[] connectRequest = new PacketFactory()
                                 .SetType(1)
-                                .PackString($"Terraria278")
+                                .PackString($"Terraria279")
                                 .GetByteData();
-                            Log($"Changing version of index {args.Msg.whoAmI} from {_supportedVersions[versionNumber]} => {_supportedVersions[278]}", color: ConsoleColor.Green);
+                            Log($"Changing version of index {args.Msg.whoAmI} from {_supportedVersions[versionNumber]} => {_supportedVersions[279]}", color: ConsoleColor.Green);
 
                             Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
                         }

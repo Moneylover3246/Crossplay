@@ -188,9 +188,9 @@ namespace Crossplay
                             NetMessage.SendData(9, args.Msg.whoAmI, -1, NetworkText.FromLiteral("Fixing Version..."), 1);
                             byte[] connectRequest = new PacketFactory()
                                 .SetType(1)
-                                .PackString($"Terraria278")
+                                .PackString($"Terraria279")
                                 .GetByteData();
-                            Log($"Changing version of index {args.Msg.whoAmI} from {_supportedVersions[versionNumber]} => {_supportedVersions[278]}", color: ConsoleColor.Green);
+                            Log($"Changing version of index {args.Msg.whoAmI} from {_supportedVersions[versionNumber]} => {_supportedVersions[279]}", color: ConsoleColor.Green);
 
                             Buffer.BlockCopy(connectRequest, 0, args.Msg.readBuffer, args.Index - 3, connectRequest.Length);
                         }

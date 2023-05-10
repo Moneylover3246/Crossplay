@@ -38,7 +38,7 @@ namespace Crossplay
 
         public override string Description => "Enables crossplay for terraria";
 
-        public override Version Version => new("2.2");
+        public override Version Version => new("2.3");
 
         public CrossplayConfig Config { get; } = new();
 
